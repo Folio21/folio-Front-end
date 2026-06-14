@@ -9534,10 +9534,17 @@ async function enrichMissingCovers(){
       const q=encodeURIComponent(`${b.title} ${b.author}`);
       const r=await fetch(`https://openlibrary.org/search.json?q=${q}&limit=3&fields=title,author_name,cover_i,isbn`,{signal:AbortSignal.timeout(6000)});
       const d=await r.json();
+      const bt=b.title.toLowerCase();
+      const ba=(b.author||'').toLowerCase().split(' ').filter(Boolean);
+      // Require title match; also prefer author match to avoid wrong-book covers
       const match=(d.docs||[]).find(x=>{
-        const t=(x.title||'').toLowerCase();const bt=b.title.toLowerCase();
-        return t===bt||t.startsWith(bt)||bt.startsWith(t);
-      })||d.docs?.[0];
+        const t=(x.title||'').toLowerCase();
+        const titleOk=t===bt||t.startsWith(bt)||bt.startsWith(t);
+        if(!titleOk)return false;
+        if(!ba.length)return true;
+        const authorStr=(x.author_name||[]).join(' ').toLowerCase();
+        return ba.some(w=>w.length>2&&authorStr.includes(w));
+      });
       if(match){
         if(match.cover_i){
           b.coverUrl=`https://covers.openlibrary.org/b/id/${match.cover_i}-M.jpg`;
