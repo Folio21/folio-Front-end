@@ -7652,8 +7652,8 @@ function renderProfile(){
         </div>
         <div style="font-size:11px;color:var(--muted)">Supports: Folio JSON backup · Folio CSV · Goodreads CSV · StoryGraph CSV</div>
         <button class="btn btn-secondary" style="font-size:12px;margin-top:10px" onclick="enrichMissingCovers().then(()=>{})">🖼️ Fetch Missing Covers</button>
-        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryToCloud().then(ok=>showToast(ok?'Library saved to cloud ☁️':'Sync failed — are you logged in?'))">☁️ Sync to Cloud</button>
-        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryFromCloud(false).then(ok=>{if(!ok)showToast('Nothing to pull from cloud');})">⬇️ Pull from Cloud</button>
+        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryToCloud().then(ok=>showToast(ok?'Library saved to cloud ☁️':'Sync failed — make sure you\'re signed in to your Folio account'))">☁️ Sync to Cloud</button>
+        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryFromCloud(false).then(ok=>{if(!ok)showToast('Nothing to pull — sign in or add books on another device first');})">⬇️ Pull from Cloud</button>
 
         <div id="import-preview" style="display:none;margin-top:16px"></div>
       </div>
@@ -13858,31 +13858,19 @@ function showFriendProfile(friendId){
 // ═══════════════════════════════════════════════
 //  CLOUD LIBRARY SYNC
 // ═══════════════════════════════════════════════
-const _SYNC_BASE='https://folio-backend-production-ad29.up.railway.app/api/v1';
-
 async function syncLibraryToCloud(){
-  const token=localStorage.getItem('folio_access_token');
-  if(!token||!books.length)return false;
+  if(!authToken||!books.length)return false;
   try{
-    const res=await fetch(`${_SYNC_BASE}/users/me/library`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-      body:JSON.stringify({books,savedAt:new Date().toISOString()})
-    });
-    return res.ok;
+    const res=await apiCall('POST','/users/me/library',{books,savedAt:new Date().toISOString()});
+    return!!res;
   }catch(e){return false;}
 }
 
 async function syncLibraryFromCloud(silent){
-  const token=localStorage.getItem('folio_access_token');
-  if(!token)return false;
+  if(!authToken)return false;
   try{
-    const res=await fetch(`${_SYNC_BASE}/users/me/library`,{
-      headers:{'Authorization':`Bearer ${token}`}
-    });
-    if(!res.ok)return false;
-    const data=await res.json();
-    if(!data.library?.books?.length)return false;
+    const data=await apiCall('GET','/users/me/library');
+    if(!data?.library?.books?.length)return false;
     const remoteBooks=data.library.books;
     const remoteMap=new Map(remoteBooks.map(b=>[b.id,b]));
     const localOnly=books.filter(b=>!remoteMap.has(b.id));
@@ -13900,19 +13888,16 @@ async function syncLibraryFromCloud(silent){
 
 let _syncCloudTimer=null;
 function scheduleCloudSync(){
-  const token=localStorage.getItem('folio_access_token');
-  if(!token)return;
+  if(!authToken)return;
   clearTimeout(_syncCloudTimer);
   _syncCloudTimer=setTimeout(async()=>{
-    const ok=await syncLibraryToCloud();
-    if(ok)console.log('Folio: cloud sync ok',new Date().toISOString());
+    await syncLibraryToCloud();
   },3000);
 }
 
 // Pull from cloud on page load if logged in
 (async function _initialCloudPull(){
-  const token=localStorage.getItem('folio_access_token');
-  if(!token)return;
+  if(!authToken)return;
   const pulled=await syncLibraryFromCloud(true);
   if(pulled)showToast('Library synced from cloud ☁️');
 })();
