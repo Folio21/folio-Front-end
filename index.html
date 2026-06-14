@@ -9343,7 +9343,11 @@ function parseImportCSV(text){
       const genreBlacklist=new Set(['fiction','nonfiction','non-fiction','books','owned','kindle','audiobook','ebook','favorites','favourites','library','borrowed']);
       const genreTag=tags.find(t=>!genreBlacklist.has(t))||tags[0]||'';
       const genre=genreTag?genreTag.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '):'';
-      return {title,author:get('author'),status,rating,date,addedDate,genre,summary:get('my review'),pages:parseInt(get('number of pages'))||0,tags,series,seriesNumber,format:'physical'};
+      const isbn13=(get('isbn13')||'').replace(/[^0-9]/g,'');
+      const isbn=(get('isbn')||'').replace(/[^0-9]/g,'');
+      const isbnKey=isbn13||isbn;
+      const coverUrl=isbnKey?`https://covers.openlibrary.org/b/isbn/${isbnKey}-M.jpg`:null;
+      return {title,author:get('author'),status,rating,date,addedDate,genre,summary:get('my review'),pages:parseInt(get('number of pages'))||0,tags,series,seriesNumber,format:'physical',coverUrl,_isbn:isbnKey||null};
     }).filter(b=>b.title);
     showImportPreview(imported,'Goodreads');
   } else if(format==='storygraph'){
@@ -9479,7 +9483,7 @@ function confirmImport(newBooks,seriesUpdates){
       spoilers:false,
       status:b.status||'read',
       progress:b.status==='read'?100:0,
-      coverUrl:null,
+      coverUrl:b.coverUrl||null,
       pages:b.pages||0,
       dnfReason:'',
       format:b.format||'physical',
@@ -9519,26 +9523,29 @@ async function enrichMissingCovers(){
   const missing=books.filter(b=>!b.coverUrl);
   if(!missing.length)return;
   let updated=0;
-  // Process in small batches to avoid hammering the API
   for(let i=0;i<missing.length;i++){
     const b=missing[i];
     try{
+      // Use Open Library search — free, no API key needed
       const q=encodeURIComponent(`${b.title} ${b.author}`);
-      const data=await apiCall('GET',`/books/search?q=${q}&limit=3`);
-      const match=data?.results?.find(r=>{
-        const t=(r.title||'').toLowerCase();const bt=b.title.toLowerCase();
+      const r=await fetch(`https://openlibrary.org/search.json?q=${q}&limit=3&fields=title,author_name,cover_i,isbn`,{signal:AbortSignal.timeout(6000)});
+      const d=await r.json();
+      const match=(d.docs||[]).find(x=>{
+        const t=(x.title||'').toLowerCase();const bt=b.title.toLowerCase();
         return t===bt||t.startsWith(bt)||bt.startsWith(t);
-      })||data?.results?.[0];
-      if(match?.coverUrl||match?.thumbnail){
-        b.coverUrl=match.coverUrl||match.thumbnail;
-        if(match.googleBooksId&&!b._gbId)b._gbId=match.googleBooksId;
-        updated++;
-        // Re-render every 10 books so user sees progress
+      })||d.docs?.[0];
+      if(match){
+        if(match.cover_i){
+          b.coverUrl=`https://covers.openlibrary.org/b/id/${match.cover_i}-M.jpg`;
+          updated++;
+        } else if(match.isbn?.[0]){
+          b.coverUrl=`https://covers.openlibrary.org/b/isbn/${match.isbn[0]}-M.jpg`;
+          updated++;
+        }
         if(updated%10===0){saveToStorage();renderBooksGrid();}
       }
     }catch(e){/* skip */}
-    // Small delay between requests to avoid overloading backend
-    await new Promise(r=>setTimeout(r,120));
+    await new Promise(r=>setTimeout(r,150));
   }
   if(updated){saveToStorage();renderBooksGrid();showToast(`Loaded covers for ${updated} book${updated>1?'s':''}! 🎨`);}
 }
