@@ -7651,6 +7651,7 @@ function renderProfile(){
           </label>
         </div>
         <div style="font-size:11px;color:var(--muted)">Supports: Folio JSON backup · Folio CSV · Goodreads CSV · StoryGraph CSV</div>
+        <button class="btn btn-secondary" style="font-size:12px;margin-top:10px" onclick="enrichMissingCovers().then(()=>{})">🖼️ Fetch Missing Covers</button>
 
         <div id="import-preview" style="display:none;margin-top:16px"></div>
       </div>
