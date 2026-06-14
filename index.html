@@ -9523,9 +9523,11 @@ function confirmImport(newBooks,seriesUpdates){
   enrichMissingCovers();
 }
 
+let _enriching=false;
 async function enrichMissingCovers(){
   const missing=books.filter(b=>!b.coverUrl);
   if(!missing.length)return;
+  _enriching=true;
   let updated=0;
   for(let i=0;i<missing.length;i++){
     const b=missing[i];
@@ -9553,11 +9555,12 @@ async function enrichMissingCovers(){
           b.coverUrl=`https://covers.openlibrary.org/b/isbn/${match.isbn[0]}-M.jpg`;
           updated++;
         }
-        if(updated%10===0){saveToStorage();renderBooksGrid();}
+        if(updated%10===0){try{localStorage.setItem('folio_books',JSON.stringify(books));}catch(e){}renderBooksGrid();}
       }
     }catch(e){/* skip */}
     await new Promise(r=>setTimeout(r,150));
   }
+  _enriching=false;
   if(updated){saveToStorage();renderBooksGrid();showToast(`Loaded covers for ${updated} book${updated>1?'s':''}! 🎨`);}
 }
 
@@ -13888,10 +13891,10 @@ async function syncLibraryFromCloud(silent){
 
 let _syncCloudTimer=null;
 function scheduleCloudSync(){
-  if(!authToken)return;
+  if(!authToken||_enriching)return;
   clearTimeout(_syncCloudTimer);
   _syncCloudTimer=setTimeout(async()=>{
-    await syncLibraryToCloud();
+    if(!_enriching)await syncLibraryToCloud();
   },3000);
 }
 
