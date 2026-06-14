@@ -7660,8 +7660,11 @@ function renderProfile(){
 
       <!-- Change Password -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
-        <div style="font-size:14px;font-weight:800;margin-bottom:14px">🔒 Change Password</div>
-        <div style="margin-bottom:10px">
+        <div style="font-size:14px;font-weight:800;margin-bottom:4px">🔒 Change Password</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          Don't know your current password? <span onclick="const r=document.getElementById('cp-current-row');const skip=r.style.display==='none';r.style.display=skip?'':'none';this.textContent=skip?'Forgot it?':'Show current password field';document.getElementById('cp-current').value='';" style="color:var(--accent);cursor:pointer;font-weight:600">Forgot it?</span>
+        </div>
+        <div id="cp-current-row" style="margin-bottom:10px">
           <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Current Password</label>
           <div style="position:relative">
             <input id="cp-current" type="password" placeholder="••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 40px 10px 12px;font-size:13px;outline:none;box-sizing:border-box"/>
@@ -12459,24 +12462,28 @@ function showAuthError(msg){
 function skipAuth(){localStorage.setItem('folio_auth_skipped','1');hideAuthModal();}
 
 async function submitChangePassword(){
-  const current=document.getElementById('cp-current')?.value;
+  const currentRow=document.getElementById('cp-current-row');
+  const skippingCurrent=currentRow?.style.display==='none';
+  const current=skippingCurrent?undefined:document.getElementById('cp-current')?.value;
   const newPw=document.getElementById('cp-new')?.value;
   const confirm=document.getElementById('cp-confirm')?.value;
   const errEl=document.getElementById('cp-error');
   const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}};
   if(errEl)errEl.style.display='none';
   if(!authToken){showErr('You must be signed in to change your password.');return;}
-  if(!current||!newPw||!confirm){showErr('Please fill in all fields.');return;}
-  if(newPw.length<16){showErr('New password must be at least 16 characters.');return;}
+  if(!skippingCurrent&&!current){showErr('Please enter your current password, or click "Forgot it?" to skip.');return;}
+  if(!newPw||!confirm){showErr('Please enter and confirm your new password.');return;}
+  if(newPw.length<8){showErr('New password must be at least 8 characters.');return;}
   if(newPw!==confirm){showErr('New passwords do not match.');return;}
+  const body=skippingCurrent?{newPassword:newPw}:{currentPassword:current,newPassword:newPw};
   try{
-    await apiCall('POST','/auth/change-password',{currentPassword:current,newPassword:newPw});
+    await apiCall('POST','/auth/change-password',body);
     document.getElementById('cp-current').value='';
     document.getElementById('cp-new').value='';
     document.getElementById('cp-confirm').value='';
     showToast('Password updated successfully 🔒');
   }catch(e){
-    showErr(e.message||'Failed to update password. Check your current password and try again.');
+    showErr(e.message||'Failed to update password. Try again.');
   }
 }
 
