@@ -3444,10 +3444,33 @@ function onDiscoverSearchInput(){
 async function fetchTitlesForDiscover(q){
   const el=document.getElementById('discover-search-results');
   try{
-    const r=await fetch(gbUrl(q,12),{signal:AbortSignal.timeout(8000)});
-    const d=await r.json();
-    const items=(d.items||[]).filter(x=>x.volumeInfo?.title);
-    searchResults=items.map(normalizeGoogleBook);
+    let usedBackend=false;
+    if(authToken){
+      try{
+        const data=await apiCall('GET',`/books/search?q=${encodeURIComponent(q)}&limit=12`);
+        if(data?.results?.length){
+          searchResults=data.results.map(b=>({
+            title:b.title||'',
+            author_name:Array.isArray(b.authors)?b.authors:[b.authors||''].filter(Boolean),
+            _coverUrl:b.coverUrl||b.thumbnail||null,
+            _gbId:b.googleBooksId||null,
+            number_of_pages_median:b.pageCount||0,
+            first_publish_year:b.publishedYear||null,
+            subject:b.genres||[],
+            key:null,author_key:null,
+            _authorName:Array.isArray(b.authors)?b.authors[0]:b.authors||'',
+            cover_i:null,_description:b.description||'',
+          }));
+          usedBackend=true;
+        }
+      }catch(e){/* fall through */}
+    }
+    if(!usedBackend){
+      const r=await fetch(gbUrl(q,12),{signal:AbortSignal.timeout(8000)});
+      const d=await r.json();
+      const items=(d.items||[]).filter(x=>x.volumeInfo?.title);
+      searchResults=items.map(normalizeGoogleBook);
+    }
     el.style.display='block';
     if(!searchResults.length){el.innerHTML=`<div class="search-empty">No results found.</div>`;return;}
     el.innerHTML=searchResults.map((r,i)=>{
