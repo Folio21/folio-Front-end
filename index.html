@@ -9508,10 +9508,39 @@ function confirmImport(newBooks,seriesUpdates){
   window.importPendingBooks=null;
   const preview=document.getElementById('import-preview');
   if(preview){
-    preview.innerHTML=`<div style="background:rgba(62,207,142,.08);border:1px solid rgba(62,207,142,.25);border-radius:10px;padding:14px;font-size:13px;color:var(--green)">✅ ${added} book${added>1?'s':''} imported successfully!</div>`;
-    setTimeout(()=>{if(preview)preview.style.display='none';},4000);
+    preview.innerHTML=`<div style="background:rgba(62,207,142,.08);border:1px solid rgba(62,207,142,.25);border-radius:10px;padding:14px;font-size:13px;color:var(--green)">✅ ${added} book${added>1?'s':''} imported! Fetching covers in background… 🖼️</div>`;
+    setTimeout(()=>{if(preview)preview.style.display='none';},6000);
   }
   showToast(`${added} book${added>1?'s':''} imported! 📚`);
+  enrichMissingCovers();
+}
+
+async function enrichMissingCovers(){
+  const missing=books.filter(b=>!b.coverUrl);
+  if(!missing.length)return;
+  let updated=0;
+  // Process in small batches to avoid hammering the API
+  for(let i=0;i<missing.length;i++){
+    const b=missing[i];
+    try{
+      const q=encodeURIComponent(`${b.title} ${b.author}`);
+      const data=await apiCall('GET',`/books/search?q=${q}&limit=3`);
+      const match=data?.results?.find(r=>{
+        const t=(r.title||'').toLowerCase();const bt=b.title.toLowerCase();
+        return t===bt||t.startsWith(bt)||bt.startsWith(t);
+      })||data?.results?.[0];
+      if(match?.coverUrl||match?.thumbnail){
+        b.coverUrl=match.coverUrl||match.thumbnail;
+        if(match.googleBooksId&&!b._gbId)b._gbId=match.googleBooksId;
+        updated++;
+        // Re-render every 10 books so user sees progress
+        if(updated%10===0){saveToStorage();renderBooksGrid();}
+      }
+    }catch(e){/* skip */}
+    // Small delay between requests to avoid overloading backend
+    await new Promise(r=>setTimeout(r,120));
+  }
+  if(updated){saveToStorage();renderBooksGrid();showToast(`Loaded covers for ${updated} book${updated>1?'s':''}! 🎨`);}
 }
 
 function cancelImport(){
