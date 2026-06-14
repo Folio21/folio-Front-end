@@ -7658,6 +7658,34 @@ function renderProfile(){
         <div id="import-preview" style="display:none;margin-top:16px"></div>
       </div>
 
+      <!-- Change Password -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:800;margin-bottom:14px">🔒 Change Password</div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Current Password</label>
+          <div style="position:relative">
+            <input id="cp-current" type="password" placeholder="••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 40px 10px 12px;font-size:13px;outline:none;box-sizing:border-box"/>
+            <span onclick="const i=document.getElementById('cp-current');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;user-select:none">👁</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">New Password</label>
+          <div style="position:relative">
+            <input id="cp-new" type="password" placeholder="••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 40px 10px 12px;font-size:13px;outline:none;box-sizing:border-box"/>
+            <span onclick="const i=document.getElementById('cp-new');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;user-select:none">👁</span>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Confirm New Password</label>
+          <div style="position:relative">
+            <input id="cp-confirm" type="password" placeholder="••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 40px 10px 12px;font-size:13px;outline:none;box-sizing:border-box"/>
+            <span onclick="const i=document.getElementById('cp-confirm');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;user-select:none">👁</span>
+          </div>
+        </div>
+        <div id="cp-error" style="display:none;font-size:12px;color:var(--red);margin-bottom:10px"></div>
+        <button class="btn btn-primary" style="font-size:13px" onclick="submitChangePassword()">Update Password</button>
+      </div>
+
     </div>`;
   // Sync theme buttons now that DOM is ready
   const saved=localStorage.getItem('folio-theme')||'dark';
@@ -12363,8 +12391,11 @@ function renderAuthForm(mode){
     </div>
     <div style="margin-bottom:20px">
       <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Password</label>
-      <input id="auth-password" type="password" placeholder="••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:13px;outline:none"
-        onkeydown="if(event.key==='Enter')submitAuthForm()"/>
+      <div style="position:relative">
+        <input id="auth-password" type="password" placeholder="••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 40px 10px 12px;font-size:13px;outline:none;box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')submitAuthForm()"/>
+        <span onclick="const i=document.getElementById('auth-password');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;user-select:none">👁</span>
+      </div>
     </div>
     <div id="auth-error" style="display:none;background:rgba(224,84,84,.12);border:1px solid rgba(224,84,84,.3);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:14px"></div>
     <button onclick="submitAuthForm()" id="auth-submit-btn" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">
@@ -12426,6 +12457,28 @@ function showAuthError(msg){
 }
 
 function skipAuth(){localStorage.setItem('folio_auth_skipped','1');hideAuthModal();}
+
+async function submitChangePassword(){
+  const current=document.getElementById('cp-current')?.value;
+  const newPw=document.getElementById('cp-new')?.value;
+  const confirm=document.getElementById('cp-confirm')?.value;
+  const errEl=document.getElementById('cp-error');
+  const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}};
+  if(errEl)errEl.style.display='none';
+  if(!authToken){showErr('You must be signed in to change your password.');return;}
+  if(!current||!newPw||!confirm){showErr('Please fill in all fields.');return;}
+  if(newPw.length<16){showErr('New password must be at least 16 characters.');return;}
+  if(newPw!==confirm){showErr('New passwords do not match.');return;}
+  try{
+    await apiCall('POST','/auth/change-password',{currentPassword:current,newPassword:newPw});
+    document.getElementById('cp-current').value='';
+    document.getElementById('cp-new').value='';
+    document.getElementById('cp-confirm').value='';
+    showToast('Password updated successfully 🔒');
+  }catch(e){
+    showErr(e.message||'Failed to update password. Check your current password and try again.');
+  }
+}
 
 async function shelveOnBackend(book){
   if(!authToken||!book.gbId)return;
