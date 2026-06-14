@@ -7652,7 +7652,7 @@ function renderProfile(){
         </div>
         <div style="font-size:11px;color:var(--muted)">Supports: Folio JSON backup · Folio CSV · Goodreads CSV · StoryGraph CSV</div>
         <button class="btn btn-secondary" style="font-size:12px;margin-top:10px" onclick="enrichMissingCovers().then(()=>{})">🖼️ Fetch Missing Covers</button>
-        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryToCloud().then(ok=>showToast(ok?'Library saved to cloud ☁️':'Sync failed — make sure you\'re signed in to your Folio account'))">☁️ Sync to Cloud</button>
+        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryToCloud().then(ok=>showToast(ok?'Library saved to cloud ☁️':'Sync failed — make sure you\'re signed in to your Folio account')).catch(()=>showToast('Sync error — check your connection'))">☁️ Sync to Cloud</button>
         <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryFromCloud(false).then(ok=>{if(!ok)showToast('Nothing to pull — sign in or add books on another device first');})">⬇️ Pull from Cloud</button>
 
         <div id="import-preview" style="display:none;margin-top:16px"></div>
@@ -9528,6 +9528,7 @@ async function enrichMissingCovers(){
   const missing=books.filter(b=>!b.coverUrl);
   if(!missing.length)return;
   _enriching=true;
+  try{
   let updated=0;
   for(let i=0;i<missing.length;i++){
     const b=missing[i];
@@ -9560,7 +9561,7 @@ async function enrichMissingCovers(){
     }catch(e){/* skip */}
     await new Promise(r=>setTimeout(r,150));
   }
-  _enriching=false;
+  }finally{_enriching=false;}
   if(updated){saveToStorage();renderBooksGrid();showToast(`Loaded covers for ${updated} book${updated>1?'s':''}! 🎨`);}
 }
 
