@@ -7652,6 +7652,8 @@ function renderProfile(){
         </div>
         <div style="font-size:11px;color:var(--muted)">Supports: Folio JSON backup · Folio CSV · Goodreads CSV · StoryGraph CSV</div>
         <button class="btn btn-secondary" style="font-size:12px;margin-top:10px" onclick="enrichMissingCovers().then(()=>{})">🖼️ Fetch Missing Covers</button>
+        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryToCloud().then(ok=>showToast(ok?'Library saved to cloud ☁️':'Sync failed — are you logged in?'))">☁️ Sync to Cloud</button>
+        <button class="btn btn-secondary" style="font-size:12px;margin-top:6px" onclick="syncLibraryFromCloud(false).then(ok=>{if(!ok)showToast('Nothing to pull from cloud');})">⬇️ Pull from Cloud</button>
 
         <div id="import-preview" style="display:none;margin-top:16px"></div>
       </div>
@@ -8464,6 +8466,7 @@ function saveToStorage(){
     localStorage.setItem('folio_dailyGoal',JSON.stringify(dailyGoal));
     localStorage.setItem('folio_likedAuthors',JSON.stringify(likedAuthors));
   }catch(e){console.warn('Folio: storage save failed',e);}
+  scheduleCloudSync();
 }
 
 // Map of book id → verified cover URL (used to migrate stale localStorage data)
@@ -13844,6 +13847,68 @@ function showFriendProfile(friendId){
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
   document.body.appendChild(overlay);
 }
+
+// ═══════════════════════════════════════════════
+//  CLOUD LIBRARY SYNC
+// ═══════════════════════════════════════════════
+const _SYNC_BASE='https://folio-backend-production-ad29.up.railway.app/api/v1';
+
+async function syncLibraryToCloud(){
+  const token=localStorage.getItem('folio_access_token');
+  if(!token||!books.length)return false;
+  try{
+    const res=await fetch(`${_SYNC_BASE}/users/me/library`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+      body:JSON.stringify({books,savedAt:new Date().toISOString()})
+    });
+    return res.ok;
+  }catch(e){return false;}
+}
+
+async function syncLibraryFromCloud(silent){
+  const token=localStorage.getItem('folio_access_token');
+  if(!token)return false;
+  try{
+    const res=await fetch(`${_SYNC_BASE}/users/me/library`,{
+      headers:{'Authorization':`Bearer ${token}`}
+    });
+    if(!res.ok)return false;
+    const data=await res.json();
+    if(!data.library?.books?.length)return false;
+    const remoteBooks=data.library.books;
+    const remoteMap=new Map(remoteBooks.map(b=>[b.id,b]));
+    const localOnly=books.filter(b=>!remoteMap.has(b.id));
+    books.length=0;
+    remoteBooks.forEach(b=>books.push(b));
+    localOnly.forEach(b=>{if(!books.find(x=>x.id===b.id))books.push(b);});
+    nextBookId=Math.max(0,...books.map(b=>b.id||0))+1;
+    saveToStorage();
+    renderBooksGrid&&renderBooksGrid();
+    renderCal&&renderCal();
+    if(!silent)showToast('Library synced from cloud ☁️');
+    return true;
+  }catch(e){return false;}
+}
+
+let _syncCloudTimer=null;
+function scheduleCloudSync(){
+  const token=localStorage.getItem('folio_access_token');
+  if(!token)return;
+  clearTimeout(_syncCloudTimer);
+  _syncCloudTimer=setTimeout(async()=>{
+    const ok=await syncLibraryToCloud();
+    if(ok)console.log('Folio: cloud sync ok',new Date().toISOString());
+  },3000);
+}
+
+// Pull from cloud on page load if logged in
+(async function _initialCloudPull(){
+  const token=localStorage.getItem('folio_access_token');
+  if(!token)return;
+  const pulled=await syncLibraryFromCloud(true);
+  if(pulled)showToast('Library synced from cloud ☁️');
+})();
 </script>
 
 <!-- AUTH MODAL -->
