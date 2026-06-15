@@ -1208,6 +1208,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
       <button class="social-tab" id="stab-trending" onclick="switchSocialTab('trending')">🔥 Trending</button>
       <button class="social-tab" id="stab-groups" onclick="switchSocialTab('groups')">👥 Groups <span class="social-tab-badge" id="groups-badge" style="display:none"></span></button>
       <button class="social-tab" id="stab-messages" onclick="switchSocialTab('messages')">💌 Messages <span class="social-tab-badge" id="dm-badge" style="display:none">2</span></button>
+      <button class="social-tab" id="stab-friends" onclick="switchSocialTab('friends')">👥 Friends <span class="social-tab-badge" id="friend-req-badge" style="display:none"></span></button>
       <button class="social-tab" id="stab-people" onclick="switchSocialTab('people')">🔍 People</button>
       <button class="social-tab" id="stab-saved" onclick="switchSocialTab('saved')">🔖 Saved</button>
     </div>
@@ -1299,6 +1300,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- FRIENDS PANEL -->
+    <div id="social-friends-panel" style="display:none">
+      <div id="friends-tab-content"></div>
     </div>
 
     <!-- PEOPLE PANEL -->
@@ -3780,6 +3786,13 @@ function renderSocialView(){
   }
   else if(socialTab==='following')renderFollowingFeed();
   else if(socialTab==='groups')renderGroupsTab();
+  else if(socialTab==='friends'){
+    if(authToken&&typeof loadFriendData==='function'){
+      loadFriendData().then(function(){renderFriendsTab();}).catch(function(){renderFriendsTab();});
+    } else {
+      renderFriendsTab();
+    }
+  }
   else if(socialTab==='people'){
     if(authToken&&typeof loadFriendData==='function'){
       loadFriendData().then(function(){renderPeopleTab();}).catch(function(){renderPeopleTab();});
@@ -3794,7 +3807,7 @@ function renderSocialView(){
 
 function switchSocialTab(tab){
   socialTab=tab;
-  ['feed','following','trending','groups','messages','people','saved'].forEach(t=>{
+  ['feed','following','trending','groups','messages','friends','people','saved'].forEach(t=>{
     document.getElementById('stab-'+t)?.classList.toggle('active',t===tab);
   });
   document.getElementById('social-feed-panel').style.display=tab==='feed'?'block':'none';
@@ -3802,15 +3815,23 @@ function switchSocialTab(tab){
   document.getElementById('social-trending-panel').style.display=tab==='trending'?'block':'none';
   document.getElementById('social-groups-panel').style.display=tab==='groups'?'block':'none';
   document.getElementById('social-messages-panel').style.display=tab==='messages'?'block':'none';
+  document.getElementById('social-friends-panel').style.display=tab==='friends'?'block':'none';
   document.getElementById('social-people-panel').style.display=tab==='people'?'block':'none';
   document.getElementById('social-saved-panel').style.display=tab==='saved'?'block':'none';
-  const titles={feed:'Social',following:'Following',trending:'🔥 Trending',groups:'Groups',messages:'Messages',people:'People',saved:'Saved Posts'};
+  const titles={feed:'Social',following:'Following',trending:'🔥 Trending',groups:'Groups',messages:'Messages',friends:'Friends',people:'🔍 People',saved:'Saved Posts'};
   document.getElementById('social-title').textContent=titles[tab]||'Social';
   document.getElementById('social-header-actions').innerHTML='';
   if(tab==='feed'){document.getElementById('social-header-actions').innerHTML=`<button class="btn btn-primary" onclick="openCreatePostModal()">+ Post</button>`;renderFeed();}
   else if(tab==='following')renderFollowingFeed();
   else if(tab==='trending')renderTrendingTab();
   else if(tab==='groups'){renderGroupsTab();document.getElementById('social-header-actions').innerHTML=`<button class="btn btn-primary" onclick="openCreateGroupModal()">+ Create Group</button>`;}
+  else if(tab==='friends'){
+    if(authToken&&typeof loadFriendData==='function'){
+      loadFriendData().then(function(){renderFriendsTab();}).catch(function(){renderFriendsTab();});
+    } else {
+      renderFriendsTab();
+    }
+  }
   else if(tab==='people'){
     if(authToken&&typeof loadFriendData==='function'){
       loadFriendData().then(function(){renderPeopleTab();}).catch(function(){renderPeopleTab();});
@@ -6717,6 +6738,57 @@ function toggleFollowingLike(postId){
   if(btn)btn.innerHTML=`${p.liked?'❤️':'🤍'} <span>${p.likes}</span>`;
 }
 
+function renderFriendsTab(){
+  const el=document.getElementById('friends-tab-content');
+  if(!el)return;
+  let html='';
+
+  // Pending incoming requests
+  const reqs=Array.isArray(_incomingRequests)?_incomingRequests:[];
+  if(reqs.length){
+    html+='<div style="background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:18px;margin-bottom:20px">';
+    html+='<div style="font-size:14px;font-weight:800;margin-bottom:14px">👋 Friend Requests <span style="background:var(--accent);color:#fff;border-radius:99px;font-size:11px;padding:2px 8px;font-weight:800;margin-left:4px">'+reqs.length+'</span></div>';
+    reqs.forEach(function(r){
+      var sName=(r.sender&&(r.sender.displayName||r.sender.username))||'Someone';
+      var sHandle=(r.sender&&r.sender.username)||'';
+      var safeName=sName.replace(/'/g,'&#39;');
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">';
+      html+='<div style="width:44px;height:44px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📖</div>';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">'+sName+'</div><div style="font-size:12px;color:var(--muted)">@'+sHandle+'</div></div>';
+      html+='<div style="display:flex;gap:8px;flex-shrink:0">';
+      html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="acceptFriendRequest(\''+r.id+'\',\''+safeName+'\')">Accept</button>';
+      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="declineFriendRequest(\''+r.id+'\')">Decline</button>';
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
+
+  // Friends list
+  const realFriends=Array.isArray(_realFriends)?_realFriends:[];
+  html+='<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">Your Friends ('+realFriends.length+')</div>';
+  if(!realFriends.length){
+    html+='<div style="text-align:center;padding:40px 20px;color:var(--muted)">';
+    html+='<div style="font-size:40px;margin-bottom:12px">🤝</div>';
+    html+='<div style="font-size:15px;font-weight:700;margin-bottom:6px">No friends yet</div>';
+    html+='<div style="font-size:13px;margin-bottom:16px">Search for people you know in the People tab.</div>';
+    html+='<button class="btn btn-primary" onclick="switchSocialTab(\'people\')">🔍 Find People</button>';
+    html+='</div>';
+  } else {
+    realFriends.forEach(function(u){
+      var name=u.displayName||u.username||'Reader';
+      var handle=u.username||'';
+      var uid=u.id;
+      html+='<div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px">';
+      html+='<div style="width:44px;height:44px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📖</div>';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">'+name+'</div><div style="font-size:12px;color:var(--muted)">@'+handle+'</div></div>';
+      html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="openDMWithUser(\''+uid+'\',\''+name.replace(/'/g,'&#39;')+'\',\''+handle+'\')">💌 Message</button>';
+      html+='</div>';
+    });
+  }
+
+  el.innerHTML=html;
+}
+
 function renderPeopleTab(searchQ){
   const q=(searchQ||document.getElementById('people-search-input')?.value||'').toLowerCase().trim();
 
@@ -7008,6 +7080,13 @@ async function loadFriendData(){
     _incomingRequests=(incoming?.requests||[]);
     _sentRequestIds=new Set((sent?.sent||[]).map(r=>r.receiverId));
     _realFriends=(friends?.friends||[]);
+    // Update badge on Friends tab
+    const badge=document.getElementById('friend-req-badge');
+    if(badge){
+      const count=_incomingRequests.length;
+      badge.textContent=count;
+      badge.style.display=count?'inline-flex':'none';
+    }
   }catch(e){/* offline */}
 }
 
@@ -7026,7 +7105,7 @@ async function acceptFriendRequest(requestId,senderName){
     await apiCall('PATCH',`/friend-requests/${requestId}`,{status:'accepted'});
     showToast(`You and ${senderName} are now friends! 🎉`);
     await loadFriendData();
-    renderPeopleTab();
+    renderFriendsTab();
   }catch(e){showToast('Could not accept request','error');}
 }
 
@@ -7034,7 +7113,9 @@ async function declineFriendRequest(requestId){
   try{
     await apiCall('PATCH',`/friend-requests/${requestId}`,{status:'rejected'});
     _incomingRequests=_incomingRequests.filter(r=>r.id!==requestId);
-    renderPeopleTab();
+    const badge=document.getElementById('friend-req-badge');
+    if(badge){const c=_incomingRequests.length;badge.textContent=c;badge.style.display=c?'inline-flex':'none';}
+    renderFriendsTab();
   }catch(e){showToast('Could not decline request','error');}
 }
 
@@ -7085,6 +7166,32 @@ function renderMessages(){
     </div>`;
   }).join('');
   if(activeDmFriend) renderDmChat(activeDmFriend);
+}
+function openDMWithUser(userId,displayName,username){
+  // Switch to Messages tab and open/create a conversation with this backend user
+  switchSocialTab('messages');
+  // If they're already in FRIENDS (local pool), open that DM
+  const localFriend=FRIENDS.find(f=>f.id===userId||f.name===displayName);
+  if(localFriend){openConversation(localFriend.id);return;}
+  // Otherwise show a placeholder chat panel
+  const area=document.getElementById('dm-chat-area');
+  if(area){
+    area.innerHTML=`
+      <div class="chat-header">
+        <div style="width:36px;height:36px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:18px">📖</div>
+        <div>
+          <div style="font-weight:700;font-size:15px">${displayName}</div>
+          <div style="font-size:11px;color:var(--muted)">@${username}</div>
+        </div>
+      </div>
+      <div class="chat-messages" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px">
+        Real-time messaging with ${displayName} coming soon! 🚀
+      </div>
+      <div class="chat-input-row" style="opacity:.5;pointer-events:none">
+        <input class="form-input" placeholder="Message ${displayName}…" style="flex:1"/>
+        <button class="btn btn-primary" style="flex-shrink:0">Send</button>
+      </div>`;
+  }
 }
 function openConversation(friendId){
   activeDmFriend=friendId;
@@ -14143,6 +14250,8 @@ function scheduleCloudSync(){
   if(!authToken)return;
   const pulled=await syncLibraryFromCloud(true);
   if(pulled)showToast('Library synced from cloud ☁️');
+  // Load friend data in background to populate badge
+  if(typeof loadFriendData==='function')loadFriendData().catch(()=>{});
 })();
 </script>
 
