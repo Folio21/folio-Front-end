@@ -7139,76 +7139,213 @@ function removeFriend(id){
   showToast(`Removed ${p?.name||id} from friends`);
 }
 
-function renderMessages(){
+// ── Real backend messaging state ──────────────────
+let _realConvs=[];        // conversations from API
+let _activeConvId=null;   // UUID of open conversation
+let _activeConvMsgs=[];   // messages for open conversation
+
+function _convOtherUser(conv){
+  // Return the other member's user object from a DM conversation
+  return (conv.members||[]).find(m=>m&&m.id!==_currentUserId())||null;
+}
+function _currentUserId(){
+  // Extract user id from JWT stored in authToken
+  try{return JSON.parse(atob(authToken.split('.')[1])).sub;}catch(e){return null;}
+}
+function _fmtMsgTime(iso){
+  try{
+    const d=new Date(iso);
+    const now=new Date();
+    const today=now.toDateString()===d.toDateString();
+    if(today)return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleDateString([],{month:'short',day:'numeric'});
+  }catch(e){return '';}
+}
+
+async function renderMessages(){
   updateDmBadge();
+  if(authToken){
+    await loadRealConversations();
+    return;
+  }
+  // Fallback: local demo pool
   const list=document.getElementById('conv-list-items');
   if(!list)return;
   list.innerHTML=FRIENDS.map(f=>{
     const conv=conversations[f.id]||{unread:0,messages:[]};
     const last=conv.messages[conv.messages.length-1];
-    const preview=last?(last.type==='book'?`📚 ${last.bookTitle}`:(last.from==='me'?'You: ':'')+last.text):'Say hello!';
+    const preview=last?(last.type==='book'?'📚 '+last.bookTitle:(last.from==='me'?'You: ':'')+last.text):'Say hello!';
     const unread=conv.unread;
-    return `<div class="conv-item ${activeDmFriend===f.id?'active':''}" onclick="openConversation('${f.id}')">
-      <div class="conv-avatar" style="background:${f.color}">
-        ${f.avatar}
-        ${f.online?'<span class="conv-online"></span>':''}
-      </div>
-      <div class="conv-meta">
-        <div class="conv-name-row">
-          <span class="conv-name">${f.name}</span>
-          ${last?`<span class="conv-time">${last.time}</span>`:''}
-        </div>
-        <div class="conv-preview ${unread?'unread':''}">
-          ${preview.length>38?preview.slice(0,38)+'…':preview}
-          ${unread?`<span class="conv-badge">${unread}</span>`:''}
-        </div>
-      </div>
-    </div>`;
+    return '<div class="conv-item '+(activeDmFriend===f.id?'active':'')+'" onclick="openConversation(\''+f.id+'\')">'
+      +'<div class="conv-avatar" style="background:'+f.color+'">'+f.avatar+(f.online?'<span class="conv-online"></span>':'')+'</div>'
+      +'<div class="conv-meta"><div class="conv-name-row"><span class="conv-name">'+f.name+'</span></div>'
+      +'<div class="conv-preview '+(unread?'unread':'')+'">'+preview.slice(0,38)+(unread?'<span class="conv-badge">'+unread+'</span>':'')+'</div>'
+      +'</div></div>';
   }).join('');
   if(activeDmFriend) renderDmChat(activeDmFriend);
 }
-function openDMWithUser(userId,displayName,username){
-  // Switch to Messages tab and open/create a conversation with this backend user
-  switchSocialTab('messages');
-  // If they're already in FRIENDS (local pool), open that DM
-  const localFriend=FRIENDS.find(f=>f.id===userId||f.name===displayName);
-  if(localFriend){openConversation(localFriend.id);return;}
-  // Otherwise show a placeholder chat panel
-  const area=document.getElementById('dm-chat-area');
-  if(area){
-    area.innerHTML=`
-      <div class="chat-header">
-        <div style="width:36px;height:36px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:18px">📖</div>
-        <div>
-          <div style="font-weight:700;font-size:15px">${displayName}</div>
-          <div style="font-size:11px;color:var(--muted)">@${username}</div>
-        </div>
-      </div>
-      <div class="chat-messages" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px">
-        Real-time messaging with ${displayName} coming soon! 🚀
-      </div>
-      <div class="chat-input-row" style="opacity:.5;pointer-events:none">
-        <input class="form-input" placeholder="Message ${displayName}…" style="flex:1"/>
-        <button class="btn btn-primary" style="flex-shrink:0">Send</button>
-      </div>`;
+
+async function loadRealConversations(){
+  const list=document.getElementById('conv-list-items');
+  if(!list)return;
+  list.innerHTML='<div style="padding:16px;color:var(--muted);font-size:12px">Loading…</div>';
+  try{
+    const data=await apiCall('GET','/conversations');
+    _realConvs=(data?.conversations||[]);
+  }catch(e){
+    list.innerHTML='<div style="padding:16px;color:var(--muted);font-size:12px">Could not load messages.</div>';
+    return;
   }
+  const myId=_currentUserId();
+  if(!_realConvs.length){
+    list.innerHTML='<div style="padding:20px 16px;color:var(--muted);font-size:13px;text-align:center">No conversations yet.<br>Message a friend from the Friends tab!</div>';
+    return;
+  }
+  list.innerHTML=_realConvs.map(function(c){
+    var other=_convOtherUser(c);
+    var name=c.name||(other?(other.displayName||other.username):'Chat')||'Chat';
+    var last=c.lastMessage;
+    var preview=last?(last.senderId===myId?'You: ':'')+last.body:'Say hello!';
+    if(preview.length>40)preview=preview.slice(0,40)+'…';
+    var unread=c.unreadCount||0;
+    var active=_activeConvId===c.id;
+    return '<div class="conv-item '+(active?'active':'')+'" onclick="openRealConversation(\''+c.id+'\')">'
+      +'<div class="conv-avatar" style="background:#6366f1">📖'+(unread?'<span class="conv-online"></span>':'')+'</div>'
+      +'<div class="conv-meta"><div class="conv-name-row"><span class="conv-name">'+name+'</span>'
+      +(last?'<span class="conv-time">'+_fmtMsgTime(last.createdAt)+'</span>':'')
+      +'</div><div class="conv-preview '+(unread?'unread':'')+'">'+preview+(unread?'<span class="conv-badge">'+unread+'</span>':'')+'</div></div></div>';
+  }).join('');
+  if(_activeConvId)openRealConversation(_activeConvId,true);
 }
+
+async function openRealConversation(convId, silent){
+  _activeConvId=convId;
+  const conv=_realConvs.find(c=>c.id===convId);
+  const other=conv?_convOtherUser(conv):null;
+  const name=conv?.name||(other?(other.displayName||other.username):'Chat')||'Chat';
+  const area=document.getElementById('dm-chat-area');
+  if(!area)return;
+  if(window.innerWidth<=768){const l=document.querySelector('.messages-layout');if(l)l.classList.add('mob-chat-open');}
+
+  area.innerHTML='<div class="chat-header">'
+    +'<button class="mob-dm-back" onclick="closeDmOnMobile()">&#8592; Back</button>'
+    +'<div class="conv-avatar" style="background:#6366f1;width:36px;height:36px;font-size:16px">📖</div>'
+    +'<div><div style="font-weight:700;font-size:15px">'+name+'</div></div>'
+    +'</div>'
+    +'<div class="chat-messages" id="real-msgs-'+convId+'" style="display:flex;align-items:center;justify-content:center"><span style="color:var(--muted);font-size:13px">Loading…</span></div>'
+    +'<div class="chat-input-row">'
+    +'<input class="chat-input" id="real-dm-input" placeholder="Message '+name+'…" onkeydown="if(event.key===\'Enter\')sendRealMessage(\''+convId+'\')" />'
+    +'<button class="send-btn" onclick="sendRealMessage(\''+convId+'\')">➤</button>'
+    +'</div>';
+
+  // Re-highlight active in sidebar
+  document.querySelectorAll('.conv-item').forEach(function(el){el.classList.remove('active');});
+  const activeItem=document.querySelector('.conv-item[onclick*="'+convId+'"]');
+  if(activeItem)activeItem.classList.add('active');
+
+  // Fetch messages
+  try{
+    const data=await apiCall('GET','/conversations/'+convId+'/messages?limit=50');
+    _activeConvMsgs=(data?.messages||[]);
+    const myId=_currentUserId();
+    const msgsEl=document.getElementById('real-msgs-'+convId);
+    if(!msgsEl)return;
+    if(!_activeConvMsgs.length){
+      msgsEl.innerHTML='<span style="color:var(--muted);font-size:13px">No messages yet — say hi!</span>';
+    }else{
+      msgsEl.innerHTML=_activeConvMsgs.map(function(m){
+        var mine=m.senderId===myId;
+        var senderName='';
+        if(!mine&&other)senderName=other.displayName||other.username||'';
+        return '<div class="msg-row '+(mine?'mine':'theirs')+'">'
+          +(!mine?'<div class="msg-avatar" style="background:#6366f1">📖</div>':'')
+          +'<div class="msg-content"><div class="msg-bubble '+(mine?'mine':'theirs')+'">'+m.body+'</div>'
+          +'<div class="msg-time">'+_fmtMsgTime(m.createdAt)+'</div></div>'
+          +(mine?'<div class="msg-avatar" style="background:#6366f1;opacity:0">·</div>':'')
+          +'</div>';
+      }).join('');
+      msgsEl.scrollTop=msgsEl.scrollHeight;
+    }
+    // Mark as read
+    apiCall('POST','/conversations/'+convId+'/read',{}).catch(()=>{});
+  }catch(e){
+    const msgsEl=document.getElementById('real-msgs-'+convId);
+    if(msgsEl)msgsEl.innerHTML='<span style="color:var(--muted);font-size:13px">Could not load messages.</span>';
+  }
+  if(!silent)document.getElementById('real-dm-input')?.focus();
+}
+
+async function sendRealMessage(convId){
+  const inp=document.getElementById('real-dm-input');
+  if(!inp||!inp.value.trim())return;
+  const text=inp.value.trim();
+  inp.value='';
+  try{
+    const data=await apiCall('POST','/conversations/'+convId+'/messages',{body:text,type:'text'});
+    _activeConvMsgs.push(data.message);
+    const myId=_currentUserId();
+    const msgsEl=document.getElementById('real-msgs-'+convId);
+    if(msgsEl){
+      // Append bubble
+      const div=document.createElement('div');
+      div.className='msg-row mine';
+      div.innerHTML='<div class="msg-avatar" style="background:#6366f1;opacity:0">·</div>'
+        +'<div class="msg-content"><div class="msg-bubble mine">'+text+'</div>'
+        +'<div class="msg-time">'+_fmtMsgTime(data.message?.createdAt||new Date().toISOString())+'</div></div>'
+        +'<div class="msg-avatar" style="background:#6366f1;opacity:0">·</div>';
+      msgsEl.appendChild(div);
+      msgsEl.scrollTop=msgsEl.scrollHeight;
+      // Remove "no messages" placeholder if present
+      msgsEl.querySelectorAll('span').forEach(function(s){if(s.textContent.includes('say hi'))s.remove();});
+    }
+  }catch(e){showToast(e.message||'Could not send','error');inp.value=text;}
+}
+
+async function openDMWithUser(userId,displayName,username){
+  if(!authToken){showToast('Sign in to message people');return;}
+  switchSocialTab('messages');
+  // Create or find existing DM conversation
+  try{
+    const data=await apiCall('POST','/conversations',{type:'dm',memberIds:[userId]});
+    const conv=data?.conversation;
+    if(!conv){showToast('Could not open chat','error');return;}
+    // Reload conversation list so the new conv appears
+    const listData=await apiCall('GET','/conversations');
+    _realConvs=(listData?.conversations||[]);
+    const list=document.getElementById('conv-list-items');
+    const myId=_currentUserId();
+    if(list){
+      list.innerHTML=_realConvs.map(function(c){
+        var other2=_convOtherUser(c);
+        var name2=c.name||(other2?(other2.displayName||other2.username):'Chat')||'Chat';
+        var last=c.lastMessage;
+        var preview=last?(last.senderId===myId?'You: ':'')+last.body:'Say hello!';
+        if(preview.length>40)preview=preview.slice(0,40)+'…';
+        var unread=c.unreadCount||0;
+        return '<div class="conv-item" onclick="openRealConversation(\''+c.id+'\')">'
+          +'<div class="conv-avatar" style="background:#6366f1">📖</div>'
+          +'<div class="conv-meta"><div class="conv-name-row"><span class="conv-name">'+name2+'</span></div>'
+          +'<div class="conv-preview">'+preview+'</div></div></div>';
+      }).join('');
+    }
+    openRealConversation(conv.id);
+  }catch(e){showToast(e.message||'Could not open chat','error');}
+}
+
 function openConversation(friendId){
   activeDmFriend=friendId;
   if(conversations[friendId]) conversations[friendId].unread=0;
   updateDmBadge();
-  renderMessages();
+  const list=document.getElementById('conv-list-items');
+  if(list) renderConvList();
+  renderDmChat(friendId);
 }
 function renderDmChat(friendId){
   const f=FRIENDS.find(x=>x.id===friendId);
   const conv=conversations[friendId]||{messages:[]};
   const area=document.getElementById('dm-chat-area');
   if(!area||!f)return;
-  // On mobile, switch to chat panel
-  if(window.innerWidth<=768){
-    const layout=document.querySelector('.messages-layout');
-    if(layout) layout.classList.add('mob-chat-open');
-  }
+  if(window.innerWidth<=768){const layout=document.querySelector('.messages-layout');if(layout)layout.classList.add('mob-chat-open');}
   area.innerHTML=`
     <div class="chat-header">
       <button class="mob-dm-back" onclick="closeDmOnMobile()" title="Back">&#8592; Back</button>
@@ -7228,7 +7365,7 @@ function renderDmChat(friendId){
       <input class="chat-input" id="dm-input-${friendId}" placeholder="Message ${f.name}…" onkeydown="if(event.key==='Enter')sendDM('${friendId}')"/>
       <button class="send-btn" onclick="sendDM('${friendId}')">➤</button>
     </div>`;
-  const msgs=document.getElementById(`dm-msgs-${friendId}`);
+  const msgs=document.getElementById('dm-msgs-'+friendId);
   if(msgs) msgs.scrollTop=msgs.scrollHeight;
 }
 function msgBubbleHtml(m,friend){
