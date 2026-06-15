@@ -6751,11 +6751,13 @@ function renderPeopleTab(searchQ){
         let backendUsers=[];
         if(authToken){
           const data=await apiCall('GET',`/users/search?q=${encodeURIComponent(q)}`);
-          backendUsers=(data?.users||[]).map(u=>({
-            id:u.id,name:u.displayName||u.username,avatar:u.avatarUrl||'📖',
-            bio:u.bio||'',color:'#6366f1',booksThisYear:0,
-            _username:u.username,_isBackend:true
-          }));
+          backendUsers=(data?.users||[]).map(u=>{
+            const p={id:u.id,name:u.displayName||u.username,avatar:u.avatarUrl||'📖',
+              bio:u.bio||'',color:'#6366f1',booksThisYear:0,
+              _username:u.username,_isBackend:true};
+            _backendUserCache.set(u.id,p);
+            return p;
+          });
         }
         // Also filter local pool
         const localMatches=allKnown.filter(p=>p.name.toLowerCase().includes(q)||(p.bio||'').toLowerCase().includes(q));
@@ -6942,20 +6944,25 @@ function renderMatchWidget() {
   return html;
 }
 
+// Cache for real users found via backend search so addFriend can look them up
+const _backendUserCache=new Map();
+
 function addFriend(id){
-  const p=SUGGESTED_POOL.find(x=>x.id===id);
-  if(!p||friendIds.has(id))return;
+  if(friendIds.has(id))return;
+  // Look in local pool first, then backend cache
+  const p=SUGGESTED_POOL.find(x=>x.id===id)||FOLLOWABLE_POOL.find(x=>x.id===id)||_backendUserCache.get(id);
+  if(!p){showToast('Could not add friend — try searching again');return;}
   friendIds.add(id);
-  FRIENDS.push(p);
+  if(!FRIENDS.find(f=>f.id===id))FRIENDS.push(p);
   saveToStorage();
   renderPeopleTab();
   renderFeed();
-  showToast(`Added ${p.name} as a friend!`);
+  showToast(`Added ${p.name} as a friend! 👋`);
 }
 
 function removeFriend(id){
   if(!friendIds.has(id))return;
-  const p=FRIENDS.find(f=>f.id===id);
+  const p=FRIENDS.find(f=>f.id===id)||_backendUserCache.get(id);
   if(!confirm(`Remove ${p?.name||id} as a friend?`))return;
   friendIds.delete(id);
   FRIENDS=FRIENDS.filter(f=>f.id!==id);
