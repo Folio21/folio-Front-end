@@ -6733,18 +6733,42 @@ function renderPeopleTab(searchQ){
   let suggested=SUGGESTED_POOL.filter(p=>!friendIds.has(p.id));
   const creators=FOLLOWABLE_POOL.filter(p=>!friendIds.has(p.id)&&!SUGGESTED_POOL.find(s=>s.id===p.id)&&!FRIENDS.find(f=>f.id===p.id));
 
-  // Search filter
+  // Search filter — hit the real backend when logged in
   if(q){
-    const searchMatches=allKnown.filter(p=>p.name.toLowerCase().includes(q)||p.id.toLowerCase().includes(q)||(p.bio||'').toLowerCase().includes(q));
-    document.getElementById('people-content').innerHTML=`
+    const container=document.getElementById('people-content');
+    container.innerHTML=`
       <div style="margin-bottom:16px">
         <input class="form-input" id="people-search-input" placeholder="🔍 Search readers, creators, authors…" oninput="renderPeopleTab()" value="${q.replace(/"/g,'&quot;')}" style="font-size:13px;height:38px;padding:0 12px;width:100%;box-sizing:border-box"/>
       </div>
       <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Results for "${q}"</div>
-      ${searchMatches.length===0?`<div style="color:var(--muted);font-size:13px;padding:20px 0 0">No users found matching "${q}".</div>`:''}
-      ${searchMatches.map(p=>personCard(p,friendIds.has(p.id),followPoolIds.has(p.id))).join('')}
-    `;
+      <div id="people-search-results" style="color:var(--muted);font-size:13px">Searching…</div>`;
     setTimeout(()=>{const el=document.getElementById('people-search-input');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0);
+    // Backend search
+    (async()=>{
+      const resultsEl=document.getElementById('people-search-results');
+      if(!resultsEl)return;
+      try{
+        let backendUsers=[];
+        if(authToken){
+          const data=await apiCall('GET',`/users/search?q=${encodeURIComponent(q)}`);
+          backendUsers=(data?.users||[]).map(u=>({
+            id:u.id,name:u.displayName||u.username,avatar:u.avatarUrl||'📖',
+            bio:u.bio||'',color:'#6366f1',booksThisYear:0,
+            _username:u.username,_isBackend:true
+          }));
+        }
+        // Also filter local pool
+        const localMatches=allKnown.filter(p=>p.name.toLowerCase().includes(q)||(p.bio||'').toLowerCase().includes(q));
+        // Merge, deduplicate by id
+        const seen=new Set(backendUsers.map(u=>u.id));
+        const merged=[...backendUsers,...localMatches.filter(p=>!seen.has(p.id))];
+        if(!resultsEl)return;
+        if(!merged.length){resultsEl.innerHTML=`<div style="color:var(--muted);font-size:13px;padding:20px 0 0">No users found matching "${q}".</div>`;return;}
+        resultsEl.innerHTML=merged.map(p=>personCard(p,friendIds.has(p.id),followPoolIds.has(p.id))).join('');
+      }catch(e){
+        if(resultsEl)resultsEl.innerHTML=`<div style="color:var(--muted);font-size:13px">Search failed. Check your connection.</div>`;
+      }
+    })();
     return;
   }
 
