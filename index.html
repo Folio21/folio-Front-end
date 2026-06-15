@@ -3780,7 +3780,13 @@ function renderSocialView(){
   }
   else if(socialTab==='following')renderFollowingFeed();
   else if(socialTab==='groups')renderGroupsTab();
-  else if(socialTab==='people')renderPeopleTab();
+  else if(socialTab==='people'){
+    if(authToken&&typeof loadFriendData==='function'){
+      loadFriendData().then(function(){renderPeopleTab();}).catch(function(){renderPeopleTab();});
+    } else {
+      renderPeopleTab();
+    }
+  }
   else if(socialTab==='trending')renderTrendingTab();
   else if(socialTab==='saved')renderSavedTab();
   else renderMessages();
@@ -3805,7 +3811,13 @@ function switchSocialTab(tab){
   else if(tab==='following')renderFollowingFeed();
   else if(tab==='trending')renderTrendingTab();
   else if(tab==='groups'){renderGroupsTab();document.getElementById('social-header-actions').innerHTML=`<button class="btn btn-primary" onclick="openCreateGroupModal()">+ Create Group</button>`;}
-  else if(tab==='people')renderPeopleTab();
+  else if(tab==='people'){
+    if(authToken&&typeof loadFriendData==='function'){
+      loadFriendData().then(function(){renderPeopleTab();}).catch(function(){renderPeopleTab();});
+    } else {
+      renderPeopleTab();
+    }
+  }
   else if(tab==='saved')renderSavedTab();
   else renderMessages();
 }
@@ -6827,14 +6839,6 @@ function renderPeopleTab(searchQ){
   }
 
   document.getElementById('people-content').innerHTML=html;
-
-  // Load fresh friend data in background then re-render quietly
-  if(authToken&&typeof loadFriendData==='function'){
-    loadFriendData().then(function(){
-      var el=document.getElementById('people-search-input');
-      if(el&&!el.value)renderPeopleTab();
-    }).catch(function(){});
-  }
 }
 
 // ═══════════════════════════════════════════════
