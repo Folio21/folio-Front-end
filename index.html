@@ -6785,49 +6785,56 @@ function renderPeopleTab(searchQ){
     return;
   }
 
-  const incomingBadge=_incomingRequests.length?` <span style="background:var(--accent);color:#fff;border-radius:99px;font-size:10px;padding:1px 6px;font-weight:800">${_incomingRequests.length}</span>`:'';
-  document.getElementById('people-content').innerHTML=`
-    <div style="margin-bottom:16px">
-      <input class="form-input" id="people-search-input" placeholder="🔍 Search readers by name or username…" oninput="renderPeopleTab()" style="font-size:13px;height:38px;padding:0 12px;width:100%;box-sizing:border-box"/>
-    </div>
+  // Build sections as strings first to avoid nested template literal issues
+  let html='<div style="margin-bottom:16px"><input class="form-input" id="people-search-input" placeholder="🔍 Search readers by name or username…" oninput="renderPeopleTab()" style="font-size:13px;height:38px;padding:0 12px;width:100%;box-sizing:border-box"/></div>';
 
-    ${_incomingRequests.length?`
-    <div style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:16px">
-      <div style="font-size:13px;font-weight:800;margin-bottom:12px">👋 Friend Requests${incomingBadge}</div>
-      ${_incomingRequests.map(r=>`
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-          <div style="width:40px;height:40px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${r.sender?.avatarUrl||'📖'}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700">${r.sender?.displayName||r.sender?.username||'Someone'}</div>
-            <div style="font-size:11px;color:var(--muted)">@${r.sender?.username||''}</div>
-          </div>
-          <div style="display:flex;gap:6px;flex-shrink:0">
-            <button class="btn btn-primary" style="font-size:11px;padding:5px 10px" onclick="acceptFriendRequest('${r.id}','${(r.sender?.displayName||r.sender?.username||'').replace(/'/g,"\\'")}')">Accept</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px" onclick="declineFriendRequest('${r.id}')">Decline</button>
-          </div>
-        </div>`).join('')}
-    </div>`:''}
+  // Incoming friend requests
+  const reqs=Array.isArray(_incomingRequests)?_incomingRequests:[];
+  if(reqs.length){
+    html+='<div style="background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:16px">';
+    html+='<div style="font-size:13px;font-weight:800;margin-bottom:12px">👋 Friend Requests <span style="background:var(--accent);color:#fff;border-radius:99px;font-size:10px;padding:1px 6px;font-weight:800">'+reqs.length+'</span></div>';
+    reqs.forEach(function(r){
+      var sName=(r.sender&&(r.sender.displayName||r.sender.username))||'Someone';
+      var sHandle=(r.sender&&r.sender.username)||'';
+      var safeName=sName.replace(/'/g,'&#39;');
+      html+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">';
+      html+='<div style="width:40px;height:40px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📖</div>';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">'+sName+'</div><div style="font-size:11px;color:var(--muted)">@'+sHandle+'</div></div>';
+      html+='<div style="display:flex;gap:6px;flex-shrink:0">';
+      html+='<button class="btn btn-primary" style="font-size:11px;padding:5px 10px" onclick="acceptFriendRequest(\''+r.id+'\',\''+safeName+'\')">Accept</button>';
+      html+='<button class="btn btn-secondary" style="font-size:11px;padding:5px 10px" onclick="declineFriendRequest(\''+r.id+'\')">Decline</button>';
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
 
-    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">
-      Your Friends (${_realFriends.length+friends.length})
-    </div>
-    ${_realFriends.map(u=>{
-      const p={id:u.id,name:u.displayName||u.username,avatar:u.avatarUrl||'📖',bio:'',color:'#6366f1',_username:u.username,_isBackend:true};
-      return personCard(p,false,false);
-    }).join('')}
-    ${friends.map(f=>personCard(f,true,followPoolIds.has(f.id))).join('')}
-    ${!_realFriends.length&&!friends.length?`<div style="color:var(--muted);font-size:13px;margin-bottom:16px">No friends yet — search for someone above!</div>`:''}
+  // Friends list
+  const realFriendCards=(Array.isArray(_realFriends)?_realFriends:[]).map(function(u){
+    var p={id:u.id,name:u.displayName||u.username,avatar:u.avatarUrl||'📖',bio:'',color:'#6366f1',_username:u.username,_isBackend:true};
+    _backendUserCache.set(u.id,p);
+    return personCard(p,false,false);
+  }).join('');
+  const localFriendCards=friends.map(function(f){return personCard(f,true,followPoolIds.has(f.id));}).join('');
+  const totalFriends=(Array.isArray(_realFriends)?_realFriends.length:0)+friends.length;
 
-    ${suggested.length?`
-    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 12px">Suggested</div>
-    ${suggested.map(p=>personCard(p,false,followPoolIds.has(p.id))).join('')}`:''}
-  `;
+  html+='<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">Your Friends ('+totalFriends+')</div>';
+  html+=realFriendCards+localFriendCards;
+  if(!totalFriends) html+='<div style="color:var(--muted);font-size:13px;margin-bottom:16px">No friends yet — search for someone above!</div>';
 
-  // Load fresh friend data in background
-  if(authToken)loadFriendData().then(()=>{
-    const el=document.getElementById('people-search-input');
-    if(el&&!el.value)renderPeopleTab();
-  });
+  if(suggested.length){
+    html+='<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 12px">Suggested</div>';
+    html+=suggested.map(function(p){return personCard(p,false,followPoolIds.has(p.id));}).join('');
+  }
+
+  document.getElementById('people-content').innerHTML=html;
+
+  // Load fresh friend data in background then re-render quietly
+  if(authToken&&typeof loadFriendData==='function'){
+    loadFriendData().then(function(){
+      var el=document.getElementById('people-search-input');
+      if(el&&!el.value)renderPeopleTab();
+    }).catch(function(){});
+  }
 }
 
 // ═══════════════════════════════════════════════
