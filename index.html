@@ -5492,6 +5492,8 @@ function openBookDetail(id){
         <div><div class="progress-note-text">${n.text}</div><div style="font-size:9px;color:var(--muted);margin-top:2px">${n.date||''}</div></div>
       </div>`).join('')}</div>
     </div>`:''}
+    <!-- Adaptations (movie/TV) -->
+    <div id="detail-adaptations-${b.id}"></div>
     <!-- Format & Series info -->
     <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px">
       ${b.format?`<span class="tag">${FORMAT_ICONS[b.format]||'📖'} ${FORMAT_LABELS[b.format]||b.format}</span>`:''}
@@ -5533,6 +5535,62 @@ function openBookDetail(id){
   if(!b.authorGender||!b.authorNationality){
     autoEnrichModalAuthorInfo(b);
   }
+  // Check for movie/TV adaptations
+  loadBookAdaptations(b);
+}
+
+// Look up whether a book has been adapted into a movie/TV show — checks
+// curated POPULAR_BOOKS data first, then falls back to OpenLibrary subjects.
+async function loadBookAdaptations(b){
+  const el=document.getElementById('detail-adaptations-'+b.id);
+  if(!el)return;
+
+  // 1) Curated list (richer info: titles, years, studios)
+  const curated=(typeof POPULAR_BOOKS!=='undefined'?POPULAR_BOOKS:[]).find(p=>p.title.toLowerCase()===b.title.toLowerCase());
+  if(curated&&curated.adaptations&&curated.adaptations.length){
+    el.innerHTML=renderAdaptationBadges(curated.adaptations);
+    return;
+  }
+
+  // 2) Fallback: ask OpenLibrary for subjects and detect adaptation keywords
+  try{
+    const sr=await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(b.title+' '+(b.author||''))}&limit=1&fields=key,subject`,{signal:AbortSignal.timeout(8000)}).then(r=>r.json()).catch(()=>null);
+    const hit=sr?.docs?.[0];
+    if(!hit)return;
+    const workKey=hit.key;
+    let subjects=hit.subject||[];
+    if(workKey){
+      const work=await fetch(`https://openlibrary.org${workKey}.json`,{signal:AbortSignal.timeout(6000)}).then(r=>r.json()).catch(()=>null);
+      if(work?.subjects)subjects=subjects.concat(work.subjects);
+    }
+    const allSubjects=subjects.map(s=>(typeof s==='string'?s:s.name||'').toLowerCase());
+    const hasMovie=allSubjects.some(s=>/film adaptation|motion picture|adapted as film/.test(s));
+    const hasTV=allSubjects.some(s=>/television|tv series|miniseries|adapted as television/.test(s));
+    if(hasMovie||hasTV){
+      const adaptations=[];
+      if(hasMovie)adaptations.push({type:'movie',title:'Adapted into a film'});
+      if(hasTV)adaptations.push({type:'tv',title:'Adapted into a TV series'});
+      el.innerHTML=renderAdaptationBadges(adaptations);
+    }
+  }catch(e){/* silent — no adaptation info available */}
+}
+
+function renderAdaptationBadges(adaptations){
+  if(!adaptations||!adaptations.length)return'';
+  return'<div class="modal-section-label">🎬 Adaptations</div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">'
+    +adaptations.map(function(a){
+      const isMovie=a.type==='movie';
+      const icon=isMovie?'🎬':'📺';
+      const label=isMovie?'Movie Adaptation':'TV Adaptation';
+      const color=isMovie?'#fbbf24':'#818cf8';
+      const bg=isMovie?'rgba(251,191,36,.08)':'rgba(99,102,241,.08)';
+      const border=isMovie?'rgba(251,191,36,.25)':'rgba(99,102,241,.25)';
+      return'<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:'+bg+';border:1px solid '+border+';border-radius:8px">'
+        +'<span style="font-size:16px">'+icon+'</span>'
+        +'<div><div style="font-size:12px;font-weight:700;color:'+color+'">'+label+'</div>'
+        +'<div style="font-size:11px;color:var(--muted)">'+a.title+'</div></div></div>';
+    }).join('')
+    +'</div>';
 }
 
 // ─── Quick-save helpers (no edit modal required) ───────────────────────────
