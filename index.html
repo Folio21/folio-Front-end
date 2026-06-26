@@ -5918,6 +5918,7 @@ function openEditBook(id){
   document.getElementById('f-cover-url').value=b.coverUrl||'';
   document.getElementById('f-pages').value=b.pages||'';
   document.getElementById('f-date').value=b.date||ds(today);
+  const fsdEl=document.getElementById('f-startdate');if(fsdEl)fsdEl.value=b.startDate||'';
   document.getElementById('f-genre').value=b.genre||'';
   document.getElementById('f-summary').value=b.summary||'';
   const fpn=document.getElementById('f-private-notes');if(fpn)fpn.value=b.privateNotes||'';
