@@ -5422,6 +5422,14 @@ function openBookDetail(id){
       <div class="status-sw-btn${b.status==='want'?' active-want':''}" onclick="changeBookStatus(${b.id},'want')">🔖 Want to Read</div>
       <div class="status-sw-btn${b.status==='paused'?' active-reading':''}" style="color:${b.status==='paused'?'#f59e0b':'var(--muted)'}" onclick="changeBookStatus(${b.id},'paused')">⏸ Paused</div>
     </div>
+    ${(typeof customShelves!=='undefined'&&customShelves.length)?`<div class="modal-section-label" style="margin-top:14px">Custom Shelves</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${customShelves.map(s=>{
+        const active=(b.customShelves||[]).includes(s.id);
+        return`<button type="button" onclick="toggleCustomShelf(${b.id},'${s.id}')" style="background:${active?s.color+'22':'transparent'};border:1px solid ${active?s.color:'var(--border)'};border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;color:${active?s.color:'var(--muted)'};transition:all .15s">${s.emoji} ${s.name}${active?' ✓':''}</button>`;
+      }).join('')}
+      <button type="button" onclick="closeModal('detail-modal');openCreateShelfModal();" style="background:transparent;border:1px dashed var(--border);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)">+ New Shelf</button>
+    </div>`:''}
     ${b.status==='reading'?`<div style="margin-top:10px;display:flex;align-items:center;gap:10px">
       <input type="range" min="0" max="100" value="${b.progress}" oninput="updateProgress(${b.id},this.value)" style="flex:1;accent-color:var(--green)"/>
       <span id="pct-disp-${b.id}" style="font-size:12px;font-weight:700;color:var(--green);min-width:36px">${b.progress}%</span>
@@ -13151,6 +13159,19 @@ function removeFromCustomShelf(bookId,shelfId){
   b.customShelves=b.customShelves.filter(s=>s!==shelfId);
   saveToStorage();
   renderBooksGrid();
+}
+
+function toggleCustomShelf(bookId,shelfId){
+  const b=books.find(x=>x.id===bookId);
+  if(!b)return;
+  if(!b.customShelves)b.customShelves=[];
+  const idx=b.customShelves.indexOf(shelfId);
+  if(idx>-1)b.customShelves.splice(idx,1);
+  else b.customShelves.push(shelfId);
+  saveToStorage();
+  renderCustomShelfTabs();
+  if(typeof renderBooksGrid==='function')renderBooksGrid();
+  openBookDetail(bookId);
 }
 
 
