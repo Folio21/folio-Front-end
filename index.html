@@ -7753,7 +7753,7 @@ function openManualEntry(prefill=''){
 }
 
 // Show profile for a static Discover card (known book data)
-// ── Real ratings, pulled live from the Google Books API ─────────────────────
+// ── Real ratings, pulled live from Google Books / Open Library ──────────────
 async function fetchGoogleBooksRating(title,author){
   try{
     // Quote multi-word title/author — without quotes Google Books only applies
@@ -7763,15 +7763,38 @@ async function fetchGoogleBooksRating(title,author){
     const items=data?.items||[];
     // Google's averageRating field is sparsely populated — scan the top
     // matches for the first one that actually has rating data.
-    const item=items.find(it=>it.volumeInfo?.averageRating)||items[0];
+    const item=items.find(it=>it.volumeInfo?.averageRating)||null;
     const v=item?.volumeInfo;
     if(!v||!v.averageRating)return null;
     return{
       avg:v.averageRating,
       count:v.ratingsCount||0,
+      source:'Google Books',
       link:v.infoLink||v.canonicalVolumeLink||(item.id?`https://books.google.com/books?id=${item.id}`:null),
     };
   }catch(e){return null;}
+}
+
+async function fetchOpenLibraryRating(title,author){
+  try{
+    const q=`title=${encodeURIComponent(title)}${author?`&author=${encodeURIComponent(author)}`:''}`;
+    const d=await fetch(`https://openlibrary.org/search.json?${q}&limit=1`,{signal:AbortSignal.timeout(7000)}).then(r=>r.json()).catch(()=>null);
+    const hit=(d?.docs||[])[0];
+    const workKey=hit?.key;
+    if(!workKey)return null;
+    const rd=await fetch(`https://openlibrary.org${workKey}/ratings.json`,{signal:AbortSignal.timeout(7000)}).then(r=>r.json()).catch(()=>null);
+    const avg=rd?.summary?.average;
+    const count=rd?.summary?.count;
+    if(!avg||!count)return null;
+    return{avg,count,source:'Open Library',link:`https://openlibrary.org${workKey}`};
+  }catch(e){return null;}
+}
+
+// Try Google Books first (richer metadata when present), fall back to Open Library
+async function fetchBookRating(title,author){
+  const g=await fetchGoogleBooksRating(title,author);
+  if(g)return g;
+  return await fetchOpenLibraryRating(title,author);
 }
 
 function reviewsHTML(title,author){
@@ -7814,10 +7837,10 @@ function generateDemoReviews(title){
 async function loadGoogleRating(boxId,title,author){
   const box=document.getElementById(boxId);
   if(!box)return;
-  const data=await fetchGoogleBooksRating(title,author);
+  const data=await fetchBookRating(title,author);
   if(!box.isConnected)return;
   if(!data){
-    box.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">No Google Books rating available yet for this title.</div>`;
+    box.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">No public rating data found for this title yet.</div>`;
     return;
   }
   const filled=Math.round(data.avg);
@@ -7827,10 +7850,10 @@ async function loadGoogleRating(boxId,title,author){
       <div style="font-size:26px;font-weight:800;color:var(--gold)">${data.avg.toFixed(1)}</div>
       <div>
         <div style="font-size:15px;color:var(--gold);letter-spacing:2px">${stars}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">${data.count?data.count.toLocaleString()+' ratings on Google Books':'Google Books rating'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${data.count?data.count.toLocaleString()+` ratings on ${data.source}`:data.source}</div>
       </div>
     </div>
-    ${data.link?`<a href="${data.link}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--accent);text-decoration:underline">See reviews on Google Books →</a>`:''}
+    ${data.link?`<a href="${data.link}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--accent);text-decoration:underline">See reviews on ${data.source} →</a>`:''}
   </div>`;
 }
 
@@ -7838,10 +7861,10 @@ async function loadGoogleRating(boxId,title,author){
 async function loadGoogleRatingInline(elId,title,author){
   const el=document.getElementById(elId);
   if(!el)return;
-  const data=await fetchGoogleBooksRating(title,author);
+  const data=await fetchBookRating(title,author);
   if(!el.isConnected)return;
   if(!data){el.remove();return;}
-  el.innerHTML=`★ ${data.avg.toFixed(1)} <span style="color:var(--muted)">${data.count?data.count.toLocaleString()+' ratings on Google Books':'Google Books rating'}</span>`;
+  el.innerHTML=`★ ${data.avg.toFixed(1)} <span style="color:var(--muted)">${data.count?data.count.toLocaleString()+` ratings on ${data.source}`:data.source}</span>`;
 }
 
 // ═══════════════════════════════════════════════
