@@ -3566,6 +3566,13 @@ const GENRE_PICKS={
     {title:"The Thursday Murder Club",author:"Richard Osman",genre:"Mystery",cover:"https://covers.openlibrary.org/b/id/10521822-M.jpg",year:2020,desc:"Four retirees in a peaceful village solve cold cases — until a real murder lands on their doorstep."},
     {title:"In the Woods",author:"Tana French",genre:"Mystery",cover:"https://covers.openlibrary.org/b/id/8733398-M.jpg",year:2007,desc:"A detective investigates a murder near the woods where he lost his childhood friends."},
   ],
+  'Romance':[
+    {title:"Fourth Wing",author:"Rebecca Yarros",genre:"Romance",year:2023,desc:"Dragon riders, brutal war college, and a slow-burn romance with real heat. Romantasy at its peak.",spice:3},
+    {title:"A Court of Thorns and Roses",author:"Sarah J. Maas",genre:"Romance",year:2015,desc:"A huntress is dragged into a deadly faerie court — and falls for the High Lord who imprisons her.",spice:3},
+    {title:"Icebreaker",author:"Hannah Grace",genre:"Romance",year:2022,desc:"A figure skater and a hockey captain forced to share the rink — and a whole lot of tension.",spice:2},
+    {title:"The Love Hypothesis",author:"Ali Hazelwood",genre:"Romance",year:2021,desc:"A fake-dating scheme between two scientists turns dangerously real.",spice:2},
+    {title:"Twisted Love",author:"Ana Huang",genre:"Romance",year:2021,desc:"A guarded billionaire and his best friend's little sister — slow burn with a serious spice ramp-up.",spice:3},
+  ],
 };
 
 function getAllDiscoverBooks(){
@@ -12601,6 +12608,7 @@ const DISCOVER_MOODS=[
   {label:'True Stories',emoji:'📰',bg:'rgba(223,168,58,.13)',sub:'Stranger than fiction',genres:['Non-Fiction']},
   {label:'Sci-Fi',emoji:'🚀',bg:'rgba(29,78,216,.35)',sub:'Space & speculative',genres:['Sci-Fi']},
   {label:'Literary',emoji:'💜',bg:'rgba(76,29,149,.4)',sub:'Character-driven fiction',genres:['Fiction']},
+  {label:'Spice',emoji:'🌶️',bg:'rgba(190,18,60,.25)',sub:'Steamy & swoony romance',genres:['Romance']},
 ];
 const STAFF_PICKS=[
   {title:'Remarkably Bright Creatures',author:'Shelby Van Pelt',desc:'A moving mystery about grief and unexpected connection — told partly by an octopus.',genre:'Fiction',cover:'https://covers.openlibrary.org/b/id/13251344-M.jpg',year:2022},
@@ -12632,6 +12640,7 @@ function renderMoodPicks(label){
         <div style="font-size:14px;font-weight:700;line-height:1.3;margin-bottom:2px">${b.title}</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:4px">${b.author||''}${b.year?` · ${b.year}`:''}</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${b.desc||''}</div>
+        ${b.spice?`<div style="font-size:11px;margin-top:4px" title="${b.spice}/5 spice rating">${'🌶️'.repeat(b.spice)}<span style="color:var(--muted);opacity:.4">${'🌶️'.repeat(Math.max(0,5-b.spice))}</span></div>`:''}
       </div>
       <div style="flex-shrink:0;display:flex;flex-direction:column;gap:5px;align-items:flex-end" onclick="event.stopPropagation()">
         ${onShelf
@@ -14222,6 +14231,13 @@ const MOOD_RECS={
     {title:'Cloud Atlas',author:'David Mitchell',why:'Six nested stories across centuries. Puzzle-box literary fiction at its finest.'},
     {title:'If on a winter\'s night a traveler',author:'Italo Calvino',why:'A novel where you, the reader, are the protagonist trying to finish a novel.'},
     {title:'Flowers for Algernon',author:'Daniel Keyes',why:'A man\'s intelligence is artificially increased. Told through journal entries. Wrecking.'},
+  ]},
+  spice:{label:'Spice 🌶️',emoji:'🌶️',desc:'Steamy, swoony, fan-yourself romance',color:'#be123c',books:[
+    {title:'Fourth Wing',author:'Rebecca Yarros',why:'Dragon riders, brutal war college, and a slow burn that earns every bit of its heat.'},
+    {title:'A Court of Thorns and Roses',author:'Sarah J. Maas',why:'A huntress falls for the High Lord who imprisons her. Romantasy that started it all.'},
+    {title:'Twisted Love',author:'Ana Huang',why:'Guarded billionaire, his best friend\'s little sister, and a slow burn with real heat.'},
+    {title:'Icebreaker',author:'Hannah Grace',why:'Figure skater, hockey captain, one shared rink, and a whole lot of tension.'},
+    {title:'The Love Hypothesis',author:'Ali Hazelwood',why:'A fake-dating scheme between two scientists that turns dangerously real.'},
   ]},
 };
 
