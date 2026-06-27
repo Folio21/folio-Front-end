@@ -7754,12 +7754,24 @@ function openManualEntry(prefill=''){
 
 // Show profile for a static Discover card (known book data)
 // ── Real ratings, pulled live from Google Books / Open Library ──────────────
+// Google's keyless quota is very low and gets exhausted (429) almost
+// instantly if many books request a rating at once. Once that happens, stop
+// calling Google for a while so we're not wasting round-trips on guaranteed
+// failures — just go straight to the Open Library fallback.
+let _gbCooldownUntil=0;
+
 async function fetchGoogleBooksRating(title,author){
+  if(Date.now()<_gbCooldownUntil)return null;
   try{
     // Quote multi-word title/author — without quotes Google Books only applies
     // intitle:/inauthor: to the first word, so longer titles silently mismatch.
     const q=`intitle:"${title}"${author?` inauthor:"${author}"`:''}`;
     const res=await fetch(gbUrl(q,5));
+    if(res.status===429){
+      _gbCooldownUntil=Date.now()+5*60*1000;
+      console.warn('[rating] Google Books rate-limited — pausing Google lookups for 5 min, using Open Library only');
+      return null;
+    }
     if(!res.ok){console.error('[rating] Google Books HTTP',res.status,title);return null;}
     const data=await res.json();
     const items=data?.items||[];
@@ -7767,7 +7779,7 @@ async function fetchGoogleBooksRating(title,author){
     // matches for the first one that actually has rating data.
     const item=items.find(it=>it.volumeInfo?.averageRating)||null;
     const v=item?.volumeInfo;
-    if(!v||!v.averageRating){console.log('[rating] no Google avgRating for',title,'— items found:',items.length);return null;}
+    if(!v||!v.averageRating)return null;
     return{
       avg:v.averageRating,
       count:v.ratingsCount||0,
@@ -7801,6 +7813,39 @@ async function fetchBookRating(title,author){
   const g=await fetchGoogleBooksRating(title,author);
   if(g)return g;
   return await fetchOpenLibraryRating(title,author);
+}
+
+// ── Cache + concurrency-limited queue ────────────────────────────────────
+// Discover renders 20+ book rows at once, each wanting a rating. Without a
+// cap, that's 20+ simultaneous fetches — instant 429s on Google and timeouts
+// on the Open Library fallback (it gets starved of connections). Route every
+// rating request through this queue (max 2 in flight) and cache results so
+// the same title isn't re-fetched on every re-render.
+const _ratingCache=new Map();
+let _ratingActive=0;
+const _ratingQueue=[];
+const RATING_CONCURRENCY=2;
+
+function _ratingKey(title,author){return(title||'').toLowerCase()+'|'+(author||'').toLowerCase();}
+
+function _pumpRatingQueue(){
+  while(_ratingActive<RATING_CONCURRENCY&&_ratingQueue.length){
+    const job=_ratingQueue.shift();
+    _ratingActive++;
+    fetchBookRating(job.title,job.author)
+      .then(data=>{_ratingCache.set(job.key,data);job.resolve(data);})
+      .catch(()=>{_ratingCache.set(job.key,null);job.resolve(null);})
+      .finally(()=>{_ratingActive--;_pumpRatingQueue();});
+  }
+}
+
+function getBookRatingQueued(title,author){
+  const key=_ratingKey(title,author);
+  if(_ratingCache.has(key))return Promise.resolve(_ratingCache.get(key));
+  return new Promise(resolve=>{
+    _ratingQueue.push({title,author,key,resolve});
+    _pumpRatingQueue();
+  });
 }
 
 function reviewsHTML(title,author){
@@ -7843,7 +7888,7 @@ function generateDemoReviews(title){
 async function loadGoogleRating(boxId,title,author){
   const box=document.getElementById(boxId);
   if(!box)return;
-  const data=await fetchBookRating(title,author);
+  const data=await getBookRatingQueued(title,author);
   if(!box.isConnected)return;
   if(!data){
     box.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">No public rating data found for this title yet.</div>`;
@@ -7867,7 +7912,7 @@ async function loadGoogleRating(boxId,title,author){
 async function loadGoogleRatingInline(elId,title,author){
   const el=document.getElementById(elId);
   if(!el)return;
-  const data=await fetchBookRating(title,author);
+  const data=await getBookRatingQueued(title,author);
   if(!el.isConnected)return;
   if(!data){el.remove();return;}
   el.innerHTML=`★ ${data.avg.toFixed(1)} <span style="color:var(--muted)">${data.count?data.count.toLocaleString()+` ratings on ${data.source}`:data.source}</span>`;
