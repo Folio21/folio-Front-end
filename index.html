@@ -7759,35 +7759,41 @@ async function fetchGoogleBooksRating(title,author){
     // Quote multi-word title/author — without quotes Google Books only applies
     // intitle:/inauthor: to the first word, so longer titles silently mismatch.
     const q=`intitle:"${title}"${author?` inauthor:"${author}"`:''}`;
-    const data=await fetch(gbUrl(q,5)).then(r=>r.json()).catch(()=>null);
+    const res=await fetch(gbUrl(q,5));
+    if(!res.ok){console.error('[rating] Google Books HTTP',res.status,title);return null;}
+    const data=await res.json();
     const items=data?.items||[];
     // Google's averageRating field is sparsely populated — scan the top
     // matches for the first one that actually has rating data.
     const item=items.find(it=>it.volumeInfo?.averageRating)||null;
     const v=item?.volumeInfo;
-    if(!v||!v.averageRating)return null;
+    if(!v||!v.averageRating){console.log('[rating] no Google avgRating for',title,'— items found:',items.length);return null;}
     return{
       avg:v.averageRating,
       count:v.ratingsCount||0,
       source:'Google Books',
       link:v.infoLink||v.canonicalVolumeLink||(item.id?`https://books.google.com/books?id=${item.id}`:null),
     };
-  }catch(e){return null;}
+  }catch(e){console.error('[rating] Google Books fetch threw for',title,e);return null;}
 }
 
 async function fetchOpenLibraryRating(title,author){
   try{
     const q=`title=${encodeURIComponent(title)}${author?`&author=${encodeURIComponent(author)}`:''}`;
-    const d=await fetch(`https://openlibrary.org/search.json?${q}&limit=1`,{signal:AbortSignal.timeout(7000)}).then(r=>r.json()).catch(()=>null);
+    const res=await fetch(`https://openlibrary.org/search.json?${q}&limit=1`,{signal:AbortSignal.timeout(7000)});
+    if(!res.ok){console.error('[rating] OL search HTTP',res.status,title);return null;}
+    const d=await res.json();
     const hit=(d?.docs||[])[0];
     const workKey=hit?.key;
-    if(!workKey)return null;
-    const rd=await fetch(`https://openlibrary.org${workKey}/ratings.json`,{signal:AbortSignal.timeout(7000)}).then(r=>r.json()).catch(()=>null);
+    if(!workKey){console.log('[rating] no OL work match for',title);return null;}
+    const res2=await fetch(`https://openlibrary.org${workKey}/ratings.json`,{signal:AbortSignal.timeout(7000)});
+    if(!res2.ok){console.error('[rating] OL ratings HTTP',res2.status,title);return null;}
+    const rd=await res2.json();
     const avg=rd?.summary?.average;
     const count=rd?.summary?.count;
-    if(!avg||!count)return null;
+    if(!avg||!count){console.log('[rating] no OL rating data for',title);return null;}
     return{avg,count,source:'Open Library',link:`https://openlibrary.org${workKey}`};
-  }catch(e){return null;}
+  }catch(e){console.error('[rating] Open Library fetch threw for',title,e);return null;}
 }
 
 // Try Google Books first (richer metadata when present), fall back to Open Library
