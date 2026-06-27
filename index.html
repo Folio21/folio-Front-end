@@ -3646,8 +3646,8 @@ function renderDiscover(){
     const onShelf=myTitles.has(b.title.toLowerCase());
     const bStr=JSON.stringify(b).replace(/"/g,'&quot;');
     const badges=adaptBadges(b);
-    const revs=generateReviews(b.title);
-    const avgRating=(revs.reduce((s,r)=>s+r.stars,0)/revs.length).toFixed(1);
+    const ratingId='discrate-'+Math.random().toString(36).slice(2,9);
+    setTimeout(()=>loadGoogleRatingInline(ratingId,b.title,b.author),0);
     return`<div style="display:flex;align-items:flex-start;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="showDiscoverBookProfile(${bStr})">
       <div style="flex-shrink:0;width:52px;height:74px;border-radius:7px;overflow:hidden;background:linear-gradient(145deg,${COVER_GRADIENTS[0][0]},${COVER_GRADIENTS[0][1]});display:flex;align-items:center;justify-content:center">
         ${b.cover
@@ -3660,7 +3660,7 @@ function renderDiscover(){
         <div style="font-size:12px;color:var(--muted);margin-bottom:4px">${b.author}${b.year?` · ${b.year}`:''}</div>
         ${badges?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${badges}</div>`:''}
         <div style="font-size:12px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${b.desc||''}</div>
-        <div style="font-size:11px;color:var(--gold);margin-top:4px">★ ${avgRating} <span style="color:var(--muted)">community rating</span></div>
+        <div id="${ratingId}" style="font-size:11px;color:var(--gold);margin-top:4px"></div>
       </div>
       <div style="flex-shrink:0;display:flex;flex-direction:column;gap:5px;align-items:flex-end" onclick="event.stopPropagation()">
         ${onShelf
@@ -7753,8 +7753,35 @@ function openManualEntry(prefill=''){
 }
 
 // Show profile for a static Discover card (known book data)
-// ── Community reviews (simulated Folio reader reviews) ──────────────────────
-function generateReviews(title){
+// ── Real ratings, pulled live from the Google Books API ─────────────────────
+async function fetchGoogleBooksRating(title,author){
+  try{
+    const q=`intitle:${title}${author?` inauthor:${author}`:''}`;
+    const data=await fetch(gbUrl(q,1)).then(r=>r.json()).catch(()=>null);
+    const item=data?.items?.[0];
+    const v=item?.volumeInfo;
+    if(!v||!v.averageRating)return null;
+    return{
+      avg:v.averageRating,
+      count:v.ratingsCount||0,
+      link:v.infoLink||v.canonicalVolumeLink||(item.id?`https://books.google.com/books?id=${item.id}`:null),
+    };
+  }catch(e){return null;}
+}
+
+function reviewsHTML(title,author){
+  const boxId='gb-rating-box-'+Math.random().toString(36).slice(2,9);
+  setTimeout(()=>loadGoogleRating(boxId,title,author),0);
+  return`<div style="margin-bottom:20px">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px">Ratings & Reviews</div>
+    <div id="${boxId}">
+      <div style="font-size:12px;color:var(--muted);padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">Loading rating from Google Books…</div>
+    </div>
+  </div>`;
+}
+
+// Sample reviews used only inside the Author Mode analytics demo dashboard (not real reader data)
+function generateDemoReviews(title){
   const h=title.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
   const users=[
     {name:'Maya K.',avatar:'🌸',bg:'#ec489922'},
@@ -7779,25 +7806,37 @@ function generateReviews(title){
   return reviews;
 }
 
-function reviewsHTML(title){
-  const revs=generateReviews(title);
-  return`<div style="margin-bottom:20px">
-    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px">Folio Community Reviews</div>
-    ${revs.map(rv=>`
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:28px;height:28px;border-radius:50%;background:${rv.user.bg};display:flex;align-items:center;justify-content:center;font-size:14px">${rv.user.avatar}</div>
-            <span style="font-size:13px;font-weight:700">${rv.user.name}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:12px;color:var(--gold)">${'★'.repeat(rv.stars)}${'☆'.repeat(5-rv.stars)}</span>
-            <span style="font-size:11px;color:var(--muted)">${rv.time}</span>
-          </div>
-        </div>
-        <div style="font-size:13px;color:var(--text);line-height:1.5">"${rv.text}"</div>
-      </div>`).join('')}
+async function loadGoogleRating(boxId,title,author){
+  const box=document.getElementById(boxId);
+  if(!box)return;
+  const data=await fetchGoogleBooksRating(title,author);
+  if(!box.isConnected)return;
+  if(!data){
+    box.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">No Google Books rating available yet for this title.</div>`;
+    return;
+  }
+  const filled=Math.round(data.avg);
+  const stars='★'.repeat(filled)+'☆'.repeat(5-filled);
+  box.innerHTML=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:26px;font-weight:800;color:var(--gold)">${data.avg.toFixed(1)}</div>
+      <div>
+        <div style="font-size:15px;color:var(--gold);letter-spacing:2px">${stars}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${data.count?data.count.toLocaleString()+' ratings on Google Books':'Google Books rating'}</div>
+      </div>
+    </div>
+    ${data.link?`<a href="${data.link}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--accent);text-decoration:underline">See reviews on Google Books →</a>`:''}
   </div>`;
+}
+
+// Compact inline rating used in Discover list rows
+async function loadGoogleRatingInline(elId,title,author){
+  const el=document.getElementById(elId);
+  if(!el)return;
+  const data=await fetchGoogleBooksRating(title,author);
+  if(!el.isConnected)return;
+  if(!data){el.remove();return;}
+  el.innerHTML=`★ ${data.avg.toFixed(1)} <span style="color:var(--muted)">${data.count?data.count.toLocaleString()+' ratings on Google Books':'Google Books rating'}</span>`;
 }
 
 // ═══════════════════════════════════════════════
@@ -8308,7 +8347,7 @@ function showDiscoverBookProfile(b){
         </div>
       </div>
     </div>
-    ${reviewsHTML(b.title)}
+    ${reviewsHTML(b.title,b.author)}
     ${bookLinksHtml(b.title,b.author)}
     ${onShelf
       ?`<div style="margin-top:12px">
@@ -8379,7 +8418,7 @@ async function showBookProfile(idx){
         </div>
       </div>
     </div>
-    ${reviewsHTML(r.title)}
+    ${reviewsHTML(r.title,author)}
     ${onShelf
       ?`<div style="text-align:center;padding:12px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);border-radius:8px;font-size:13px;font-weight:700;color:var(--green)">✓ Already on your shelf</div>`
       :`<div style="display:flex;gap:8px">
@@ -11412,7 +11451,7 @@ function renderAuthorReviews(bookId){
 
   // Reviews
   const reviewsHTML=filtered.flatMap(b=>{
-    const revs=generateReviews(b.title);
+    const revs=generateDemoReviews(b.title);
     return revs.map(r=>`
       <div class="review-card">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
