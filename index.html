@@ -7756,9 +7756,14 @@ function openManualEntry(prefill=''){
 // ── Real ratings, pulled live from the Google Books API ─────────────────────
 async function fetchGoogleBooksRating(title,author){
   try{
-    const q=`intitle:${title}${author?` inauthor:${author}`:''}`;
-    const data=await fetch(gbUrl(q,1)).then(r=>r.json()).catch(()=>null);
-    const item=data?.items?.[0];
+    // Quote multi-word title/author — without quotes Google Books only applies
+    // intitle:/inauthor: to the first word, so longer titles silently mismatch.
+    const q=`intitle:"${title}"${author?` inauthor:"${author}"`:''}`;
+    const data=await fetch(gbUrl(q,5)).then(r=>r.json()).catch(()=>null);
+    const items=data?.items||[];
+    // Google's averageRating field is sparsely populated — scan the top
+    // matches for the first one that actually has rating data.
+    const item=items.find(it=>it.volumeInfo?.averageRating)||items[0];
     const v=item?.volumeInfo;
     if(!v||!v.averageRating)return null;
     return{
