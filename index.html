@@ -13422,7 +13422,8 @@ let currentUser=JSON.parse(localStorage.getItem('folio_user')||'null');
 
 async function apiCall(method,path,body){
   try{
-    const headers={'Content-Type':'application/json'};
+    const headers={};
+    if(body)headers['Content-Type']='application/json';
     if(authToken)headers['Authorization']=`Bearer ${authToken}`;
     const res=await fetch(`${API_BASE}${path}`,{method,headers,body:body?JSON.stringify(body):undefined});
     if(res.status===401){
