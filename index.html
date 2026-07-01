@@ -1515,8 +1515,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
         <input class="form-input" id="f-startdate" type="date"/>
       </div>
       <div class="form-group" id="f-progress-row" style="display:none">
-        <label class="form-label">Progress (%)</label>
-        <input class="form-input" id="f-progress" type="number" min="0" max="100" placeholder="e.g. 45"/>
+        <label class="form-label">Pages Read</label>
+        <input class="form-input" id="f-progress" type="number" min="0" placeholder="e.g. 120"/>
       </div>
       <div class="form-group" id="f-dnf-row" style="display:none">
         <label class="form-label">Why did you stop?</label>
@@ -6390,7 +6390,9 @@ function openEditBook(id){
   const fpn=document.getElementById('f-private-notes');if(fpn)fpn.value=b.privateNotes||'';
   switchThoughtsTab('review');
   document.getElementById('f-tags').value=(b.tags||[]).join(', ');
-  document.getElementById('f-progress').value=b.progress||0;
+  // Show pages read (convert from stored percentage if pages are known)
+  const _pagesForProg=parseInt(document.getElementById('f-pages').value)||b.pages||0;
+  document.getElementById('f-progress').value=_pagesForProg?Math.round((b.progress||0)/100*_pagesForProg):(b.progress||0);
   const agEl=document.getElementById('f-author-gender');if(agEl)agEl.value=b.authorGender||'';
   const anEl=document.getElementById('f-author-nationality');if(anEl)anEl.value=b.authorNationality||'';
   const fsEl=document.getElementById('f-series');if(fsEl)fsEl.value=b.series||'';
@@ -6512,7 +6514,12 @@ function submitBook(e){
   const genre=document.getElementById('f-genre').value;
   const summary=formStatus==='read'?document.getElementById('f-summary').value.trim():'';
   const tags=document.getElementById('f-tags').value.trim().split(',').map(t=>t.trim()).filter(Boolean);
-  const progress=(formStatus==='reading'||formStatus==='dnf')?parseInt(document.getElementById('f-progress').value)||0:formStatus==='read'?100:0;
+  // Convert pages read → percentage; fall back to treating value as % if no page count
+  const _pagesInput=parseInt(document.getElementById('f-progress').value)||0;
+  const _totalPages=parseInt(document.getElementById('f-pages').value)||0;
+  const progress=(formStatus==='reading'||formStatus==='dnf')
+    ?(_totalPages?Math.min(100,Math.round(_pagesInput/_totalPages*100)):Math.min(100,_pagesInput))
+    :formStatus==='read'?100:0;
   const dnfReason=formStatus==='dnf'?(document.getElementById('f-dnf-reason')?.value||''):'';
   const format=document.getElementById('f-format')?.value||'physical';
   const series=document.getElementById('f-series')?.value.trim()||'';
