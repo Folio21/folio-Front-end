@@ -1518,7 +1518,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
           <select class="form-select" id="f-genre">
             <option value="">Select genre</option>
             <option>Fiction</option><option>Non-Fiction</option><option>Fantasy</option><option>Sci-Fi</option>
-            <option>Mystery</option><option>Romance</option><option>Thriller</option><option>Biography</option>
+            <option>Mystery</option><option>Romance</option><option>Romantasy</option><option>Thriller</option><option>Biography</option>
             <option>Self-Help</option><option>History</option>
           </select>
         </div>
@@ -11103,7 +11103,7 @@ let obGoal=12;
 let obSelectedGenres=new Set();
 const OB_GENRES=[
   {emoji:'📚',label:'Fiction'},{emoji:'🔮',label:'Fantasy'},{emoji:'🚀',label:'Sci-Fi'},
-  {emoji:'🔍',label:'Mystery'},{emoji:'💘',label:'Romance'},{emoji:'🗡️',label:'Thriller'},
+  {emoji:'🔍',label:'Mystery'},{emoji:'💘',label:'Romance'},{emoji:'✨',label:'Romantasy'},{emoji:'🗡️',label:'Thriller'},
   {emoji:'📖',label:'Non-Fiction'},{emoji:'🏛️',label:'History'},{emoji:'🧘',label:'Self-Help'},
 ];
 
@@ -11645,7 +11645,7 @@ function saveAuthorBooks(){
 
 function showAuthorAddBook(editId){
   const existing=editId?AUTHOR_DEMO_BOOKS.find(b=>b.id===editId):null;
-  const genres=['Fantasy','Sci-Fi','Thriller','Romance','Mystery','Horror','Literary Fiction','Historical Fiction','Non-Fiction','Young Adult','Other'];
+  const genres=['Fantasy','Sci-Fi','Thriller','Romance','Romantasy','Mystery','Horror','Literary Fiction','Historical Fiction','Non-Fiction','Young Adult','Other'];
   const overlay=document.createElement('div');
   overlay.id='author-add-book-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
