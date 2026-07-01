@@ -4017,11 +4017,17 @@ function getPostById(id){
 }
 
 async function loadBackendGroups(){
-  if(!_backendGroupsLoaded){
+  try{
+    // GET /groups is public — use apiCall (adds auth header if logged in)
+    const data=await apiCall('GET','/groups?page=1');
+    if(data?.groups){_backendGroups=data.groups;_backendGroupsLoaded=true;}
+  }catch(e){
+    // Fallback: try without auth (e.g. network error in apiCall)
     try{
-      const data=await apiCall('GET','/groups?page=1');
+      const res=await fetch(`${API_BASE}/groups?page=1`);
+      const data=await res.json();
       if(data?.groups){_backendGroups=data.groups;_backendGroupsLoaded=true;}
-    }catch(e){console.warn('[groups] Failed to load:',e);}
+    }catch(e2){console.warn('[groups] Failed to load:',e2);}
   }
 }
 let _backendGroups=[];
@@ -4803,7 +4809,7 @@ async function renderGroupsTab(){
   document.getElementById('groups-browse').style.display='block';
   document.getElementById('group-detail').classList.remove('active');
   currentGroupId=null;
-  if(authToken&&!_backendGroupsLoaded)await loadBackendGroups();
+  if(authToken)await loadBackendGroups();
   renderGroupsBrowse();
   renderMyGroupsSidebar();
   renderSuggestedGroups();
@@ -4921,30 +4927,47 @@ async function openBackendGroup(slug){
     const data=await apiCall('GET',`/groups/${slug}`);
     const g=data?.group;
     if(!g){el.innerHTML=`<div style="padding:24px;color:var(--muted)">Group not found.</div>`;return;}
-    const members=data?.members||[];
-    const memberUsers=data?.users||[];
+    const members=data?.members||[]; // each has {userId, role, user:{id,username,displayName,avatarUrl}}
+    const isMember=!!(data?.membership)||members.some(m=>m.userId===currentUser?.id);
+    const memberCards=members.slice(0,12).map(m=>{
+      const u=m.user||{};
+      return`<div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:99px;padding:5px 10px 5px 6px">
+        ${u.avatarUrl?`<img src="${u.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📖</div>`}
+        <span style="font-size:12px;font-weight:600">${u.displayName||u.username||'Member'}</span>
+        ${m.role==='admin'?`<span style="font-size:9px;color:var(--accent);font-weight:800">ADMIN</span>`:''}
+      </div>`;
+    }).join('');
     el.innerHTML=`
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
         <button class="btn btn-ghost" onclick="renderGroupsTab()" style="font-size:12px;padding:6px 10px">← Back</button>
         <div style="font-size:28px">👥</div>
         <div style="flex:1">
           <div style="font-weight:800;font-size:18px">${g.name}</div>
-          <div style="font-size:12px;color:var(--muted)">${g.isPrivate?'🔒 Private':'🌍 Public'} · ${g.memberCount||0} members</div>
+          <div style="font-size:12px;color:var(--muted)">${g.isPrivate?'🔒 Private':'🌍 Public'} · ${g.memberCount||members.length} member${(g.memberCount||members.length)!==1?'s':''}</div>
         </div>
-        ${authToken?`<button class="btn btn-primary btn-sm" onclick="joinBackendGroup('${g.slug}',this)">${members.some(m=>m.userId===currentUser?.id)?'✓ Joined':'Join Group'}</button>`:''}
+        ${authToken&&!isMember?`<button class="btn btn-primary btn-sm" onclick="joinBackendGroup('${g.slug}',this)">Join Group</button>`:''}
+        ${isMember&&!members.some(m=>m.role==='admin'&&m.userId===currentUser?.id)?`<button class="btn btn-ghost btn-sm" onclick="leaveBackendGroup('${g.slug}',this)">Leave</button>`:''}
       </div>
       ${g.description?`<div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">${g.description}</div>`:''}
-      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">Members</div>
+      ${isMember?`<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--green);margin-bottom:16px">✓ You're a member</div>`:''}
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">Members (${members.length})</div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-        ${memberUsers.slice(0,12).map(u=>`<div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:99px;padding:5px 10px 5px 6px">
-          <div style="width:24px;height:24px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${u.avatarUrl?`<img src="${u.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`:(u.avatarUrl||'📖')}</div>
-          <span style="font-size:12px;font-weight:600">${u.displayName||u.username}</span>
-        </div>`).join('')}
-        ${memberUsers.length===0?'<div style="color:var(--muted);font-size:12px">No members yet.</div>':''}
+        ${memberCards||'<div style="color:var(--muted);font-size:12px">No members yet — be the first to join!</div>'}
       </div>`;
   }catch(e){
     el.innerHTML=`<div style="padding:24px"><button class="btn btn-ghost" onclick="renderGroupsTab()" style="margin-bottom:16px">← Back</button><div style="color:var(--muted)">Failed to load group. Check your connection.</div></div>`;
   }
+}
+
+async function leaveBackendGroup(slug,btn){
+  if(!authToken)return;
+  try{
+    await apiCall('DELETE',`/groups/${slug}/leave`);
+    if(btn)btn.textContent='Left';
+    showToast('Left group');
+    _backendGroupsLoaded=false;
+    setTimeout(()=>renderGroupsTab(),500);
+  }catch(e){showToast('Could not leave group');}
 }
 
 async function joinBackendGroup(slug,btn){
@@ -5518,11 +5541,31 @@ function selectEmoji(e){
   newGroupEmoji=e;
   document.querySelectorAll('.emoji-opt').forEach(el=>el.classList.toggle('selected',el.textContent===e));
 }
-function submitCreateGroup(evt){
+async function submitCreateGroup(evt){
   evt.preventDefault();
   const name=document.getElementById('cg-name').value.trim();
   const desc=document.getElementById('cg-desc').value.trim();
+  if(!name){showToast('Enter a group name');return;}
   const colorIdx=nextGroupId%GROUP_BG_COLORS.length;
+  // Always save to backend when logged in
+  if(currentUser&&authToken){
+    try{
+      const result=await apiCall('POST','/groups',{name,description:desc,isPrivate:newGroupPrivacy==='private'});
+      if(result?.group){
+        // Group created on backend — invalidate cache so it shows up on reload
+        _backendGroupsLoaded=false;
+        closeModal('create-group-modal');
+        showToast(`"${name}" created! Everyone can now see it.`);
+        switchSocialTab('groups');
+        return;
+      }
+    }catch(e){
+      const msg=e.message||'';
+      if(msg.toLowerCase().includes('already exists')){showToast('A group with that name already exists');return;}
+      showToast('Could not save group to server — saved locally instead');
+    }
+  }
+  // Fallback: local only (not logged in or server error)
   groups.unshift({id:nextGroupId++,name,desc,emoji:newGroupEmoji,color:GROUP_BG_COLORS[colorIdx],privacy:newGroupPrivacy,creatorId:'me',members:['me'],requests:[],invites:[],posts:[]});
   closeModal('create-group-modal');
   switchSocialTab('groups');
