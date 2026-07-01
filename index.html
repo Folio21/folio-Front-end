@@ -67,6 +67,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
 .cal-tab.active{background:var(--surface);color:var(--text);}
 .cal-nav{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
 .cal-nav h2{font-size:17px;font-weight:700;flex:1;}
+.month-wheel-item{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none;}
+.month-wheel-item:hover{border-color:var(--accent);color:var(--accent);}
+.month-wheel-item.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.month-wheel-item.has-books::after{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;margin-left:6px;opacity:.7;vertical-align:middle;}
+#month-scroll-wheel::-webkit-scrollbar{display:none;}
 .arrow-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;}
 .arrow-btn:hover{background:var(--border);}
 .month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:var(--border);border-radius:var(--radius);overflow:hidden;}
@@ -1062,6 +1067,10 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
       <button class="btn btn-ghost" onclick="goToday()" style="margin-left:6px">Today</button>
     </div>
     <div id="cal-body"></div>
+    <!-- Month scroll wheel -->
+    <div id="month-scroll-wheel" style="margin-top:24px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:4px">
+      <div id="month-scroll-inner" style="display:flex;gap:6px;width:max-content;padding:2px 4px"></div>
+    </div>
     <!-- Mobile weekly recap widget (only visible on mobile) -->
     <div id="cal-recap-slot" style="display:none;margin-top:18px"></div>
   </div>
@@ -2290,7 +2299,43 @@ function closeMobileDrawer(){
 function switchCalTab(t){calView=t;['month','week','year'].forEach(x=>document.getElementById('tab-'+x).classList.toggle('active',x===t));renderCal();}
 function navCal(dir){if(calView==='month')calDate.setMonth(calDate.getMonth()+dir);else if(calView==='week')calDate.setDate(calDate.getDate()+dir*7);else calDate.setFullYear(calDate.getFullYear()+dir);renderCal();}
 function goToday(){calDate=new Date(today);renderCal();}
-function renderCal(){renderStatsBar();if(calView==='month')renderMonth();else if(calView==='week')renderWeek();else renderYear();}
+function renderCal(){renderStatsBar();if(calView==='month')renderMonth();else if(calView==='week')renderWeek();else renderYear();renderMonthWheel();}
+
+function renderMonthWheel(){
+  const wrap=document.getElementById('month-scroll-wheel');
+  const inner=document.getElementById('month-scroll-inner');
+  if(!inner)return;
+  // Only show in month/week view
+  if(calView==='year'){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  const curY=calDate.getFullYear(), curM=calDate.getMonth();
+  // Build a window: 18 months back → 6 months forward
+  const months=[];
+  for(let i=-18;i<=6;i++){
+    const d=new Date(curY,curM+i,1);
+    months.push({y:d.getFullYear(),m:d.getMonth()});
+  }
+  // Set of "year-month" strings that have books
+  const bookMonths=new Set(books.map(b=>b.date?b.date.slice(0,7):'').filter(Boolean));
+  const MNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  inner.innerHTML=months.map(({y,m})=>{
+    const key=`${y}-${String(m+1).padStart(2,'0')}`;
+    const isActive=(y===curY&&m===curM);
+    const hasBooks=bookMonths.has(key);
+    return`<button class="month-wheel-item${isActive?' active':''}${hasBooks?' has-books':''}" onclick="jumpCalToMonth(${y},${m})">${MNAMES[m]} ${y!==curY?y:''}</button>`;
+  }).join('');
+  // Scroll active item into center
+  setTimeout(()=>{
+    const active=inner.querySelector('.month-wheel-item.active');
+    if(active)active.scrollIntoView({inline:'center',behavior:'smooth',block:'nearest'});
+  },50);
+}
+
+function jumpCalToMonth(y,m){
+  calDate=new Date(y,m,1);
+  if(calView==='year')calView='month';
+  renderCal();
+}
 
 // Build a map of date-string → array of calendar event objects
 // { type:'progress', bookId, title, pct, text, coverUrl }
