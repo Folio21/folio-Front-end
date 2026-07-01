@@ -5547,26 +5547,27 @@ async function submitCreateGroup(evt){
   const desc=document.getElementById('cg-desc').value.trim();
   if(!name){showToast('Enter a group name');return;}
   const colorIdx=nextGroupId%GROUP_BG_COLORS.length;
-  // Always save to backend when logged in
+  // Always add to local array + save (so it persists across refreshes regardless)
+  const localGroup={id:nextGroupId++,name,desc,emoji:newGroupEmoji,color:GROUP_BG_COLORS[colorIdx],privacy:newGroupPrivacy,creatorId:'me',members:['me'],requests:[],invites:[],posts:[]};
+  groups.unshift(localGroup);
+  saveToStorage();
+  // Also push to backend when logged in so others can see it
   if(currentUser&&authToken){
     try{
       const result=await apiCall('POST','/groups',{name,description:desc,isPrivate:newGroupPrivacy==='private'});
       if(result?.group){
-        // Group created on backend — invalidate cache so it shows up on reload
-        _backendGroupsLoaded=false;
-        closeModal('create-group-modal');
-        showToast(`"${name}" created! Everyone can now see it.`);
-        switchSocialTab('groups');
-        return;
+        _backendGroupsLoaded=false; // force re-fetch so backend version shows with 🌐 badge
+        showToast(`"${name}" created! Everyone on Folio can now see it.`);
       }
     }catch(e){
       const msg=e.message||'';
-      if(msg.toLowerCase().includes('already exists')){showToast('A group with that name already exists');return;}
-      showToast('Could not save group to server — saved locally instead');
+      if(msg.toLowerCase().includes('already exists')){
+        showToast('A group with that name already exists on the server');
+      }else{
+        showToast(`"${name}" saved — will sync when connection improves`);
+      }
     }
   }
-  // Fallback: local only (not logged in or server error)
-  groups.unshift({id:nextGroupId++,name,desc,emoji:newGroupEmoji,color:GROUP_BG_COLORS[colorIdx],privacy:newGroupPrivacy,creatorId:'me',members:['me'],requests:[],invites:[],posts:[]});
   closeModal('create-group-modal');
   switchSocialTab('groups');
 }
