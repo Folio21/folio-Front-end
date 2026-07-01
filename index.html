@@ -14093,6 +14093,100 @@ const COUNTRY_BOOKS={
   'Pakistan':['The Kite Runner','A Thousand Splendid Suns'],
 };
 
+// author name → country (covers most commonly-read authors)
+const AUTHOR_COUNTRY={
+  // American
+  'stephen king':'United States','toni morrison':'United States','ernest hemingway':'United States',
+  'f. scott fitzgerald':'United States','john steinbeck':'United States','mark twain':'United States',
+  'maya angelou':'United States','sylvia plath':'United States','edgar allan poe':'United States',
+  'cormac mccarthy':'United States','don delillo':'United States','philip roth':'United States',
+  'saul bellow':'United States','raymond carver':'United States','john updike':'United States',
+  'david foster wallace':'United States','jonathan franzen':'United States',
+  'colson whitehead':'United States','jesmyn ward':'United States','zadie smith':'United States',
+  'gillian flynn':'United States','donna tartt':'United States','taylor jenkins reid':'United States',
+  'colleen hoover':'United States','emily henry':'United States','richard russo':'United States',
+  'ann patchett':'United States','barbara kingsolver':'United States','alice walker':'United States',
+  'octavia butler':'United States','ursula k. le guin':'United States','andy weir':'United States',
+  'james patterson':'United States','nicholas sparks':'United States','danielle steel':'United States',
+  'john grisham':'United States','michael crichton':'United States','lee child':'United States',
+  'james lee burke':'United States','sue grafton':'United States','janet evanovich':'United States',
+  'liane moriarty':'Australia','markus zusak':'Australia',
+  'celeste ng':'United States','jenny han':'United States','angie thomas':'United States',
+  'jason reynolds':'United States','leigh bardugo':'United States','sarah j. maas':'United States',
+  'brandon sanderson':'United States','patrick rothfuss':'United States',
+  'george r.r. martin':'United States','neil gaiman':'United Kingdom',
+  'terry pratchett':'United Kingdom','j.k. rowling':'United Kingdom',
+  'agatha christie':'United Kingdom','ian mcewan':'United Kingdom',
+  'kazuo ishiguro':'United Kingdom','salman rushdie':'United Kingdom',
+  'julian barnes':'United Kingdom','martin amis':'United Kingdom',
+  'nick hornby':'United Kingdom','david nicholls':'United Kingdom',
+  'paula hawkins':'United Kingdom','richard osman':'United Kingdom',
+  'james herriot':'United Kingdom','roald dahl':'United Kingdom',
+  'arthur conan doyle':'United Kingdom','charles dickens':'United Kingdom',
+  'jane austen':'United Kingdom','george orwell':'United Kingdom',
+  'virginia woolf':'United Kingdom','oscar wilde':'Ireland',
+  'james joyce':'Ireland','sally rooney':'Ireland','paul murray':'Ireland',
+  'colm tóibín':'Ireland','colm toibin':'Ireland','sebastian barry':'Ireland',
+  'john banville':'Ireland','edna o\'brien':'Ireland',
+  'victor hugo':'France','albert camus':'France','simone de beauvoir':'France',
+  'gustave flaubert':'France','alexandre dumas':'France','stendhal':'France',
+  'Marcel proust':'France','jean-paul sartre':'France','patrick modiano':'France',
+  'gabriel garcía márquez':'Colombia','gabriel garcia marquez':'Colombia',
+  'jorge luis borges':'Argentina','cesar aira':'Argentina','ernesto sabato':'Argentina',
+  'pablo neruda':'Chile','isabel allende':'Chile',
+  'mario vargas llosa':'Peru','julio cortázar':'Argentina','julio cortazar':'Argentina',
+  'elena ferrante':'Italy','umberto eco':'Italy','italo calvino':'Italy',
+  'primo levi':'Italy','dante alighieri':'Italy',
+  'haruki murakami':'Japan','banana yoshimoto':'Japan','yoko ogawa':'Japan',
+  'keigo higashino':'Japan','sayaka murata':'Japan','mieko kawakami':'Japan',
+  'ryu murakami':'Japan','natsuo kirino':'Japan','yukio mishima':'Japan',
+  'fyodor dostoevsky':'Russia','leo tolstoy':'Russia','anton chekhov':'Russia',
+  'ivan turgenev':'Russia','mikhail bulgakov':'Russia','boris pasternak':'Russia',
+  'aleksandr solzhenitsyn':'Russia',
+  'franz kafka':'Czech Republic','milan kundera':'Czech Republic',
+  'günter grass':'Germany','günter grass':'Germany','thomas mann':'Germany',
+  'hermann hesse':'Germany','patrick süskind':'Germany','patrick suskind':'Germany',
+  'chimamanda ngozi adichie':'Nigeria','chinua achebe':'Nigeria','wole soyinka':'Nigeria',
+  'ben okri':'Nigeria','buchi emecheta':'Nigeria',
+  'tomi adeyemi':'Nigeria',
+  'yaa gyasi':'Ghana',
+  'ngugi wa thiong\'o':'Kenya','ngũgĩ wa thiong\'o':'Kenya',
+  'ama ata aidoo':'Ghana',
+  'Tayeb salih':'Sudan',
+  'naguib mahfouz':'Egypt','nawal el saadawi':'Egypt',
+  'khaled hosseini':'Afghanistan','atiq rahimi':'Afghanistan',
+  'arundhati roy':'India','vikram seth':'India','amitav ghosh':'India',
+  'salman rushdie':'India','rohinton mistry':'India','jhumpa lahiri':'India',
+  'kiran desai':'India','anita desai':'India','r.k. narayan':'India',
+  'kamila shamsie':'Pakistan','mohsin hamid':'Pakistan',
+  'han kang':'South Korea','shin kyung-sook':'South Korea','cho nam-joo':'South Korea',
+  'liu cixin':'China','mo yan':'China','yu hua':'China',
+  'can xue':'China','wei wei':'China',
+  'orhan pamuk':'Turkey',
+  'amos oz':'Israel','david grossman':'Israel',
+  'khalil gibran':'Lebanon',
+  'marjane satrapi':'Iran','sadegh hedayat':'Iran',
+  'nadia hashimi':'Afghanistan',
+  'edwidge danticat':'Haiti',
+  'junot díaz':'Dominican Republic','junot diaz':'Dominican Republic',
+  'jamaica kincaid':'Antigua',
+  'v.s. naipaul':'Trinidad and Tobago',
+  'derek walcott':'Saint Lucia',
+  'jessica j. lee':'Canada','margaret atwood':'Canada',
+  'alice munro':'Canada','michael ondaatje':'Canada',
+  'yann martel':'Canada','douglas coupland':'Canada',
+  'donna morrissey':'Canada',
+  'peter carey':'Australia','tim winton':'Australia',
+  'kate grenville':'Australia','richard flanagan':'Australia',
+  'eleanor catton':'New Zealand',
+  'henning mankell':'Sweden','stieg larsson':'Sweden',
+  'jo nesbø':'Norway','jo nesbo':'Norway','per petterson':'Norway',
+  'karl ove knausgård':'Norway','karl ove knausgard':'Norway',
+  'tove jansson':'Finland','sofi oksanen':'Finland',
+  'halldór laxness':'Iceland','halldor laxness':'Iceland',
+  'arnaldur indriðason':'Iceland',
+};
+
 // nationality adjective → country name
 const NATIONALITY_COUNTRY={
   'american':'United States','british':'United Kingdom','english':'United Kingdom',
@@ -14143,6 +14237,19 @@ function getBooksReadByCountry(){
   readBooks.filter(b=>b.authorNationality&&!b.country).forEach(b=>{
     const nat=(b.authorNationality||'').toLowerCase().trim();
     const country=NATIONALITY_COUNTRY[nat];
+    if(country){
+      if(!result[country])result[country]=[];
+      if(!result[country].includes(b.title))result[country].push(b.title);
+    }
+  });
+
+  // 4. Author name lookup — covers imported books with no nationality field
+  readBooks.forEach(b=>{
+    // Normalise: "Last, First" → "First Last", then lowercase
+    let authorKey=(b.author||'').trim();
+    if(authorKey.includes(','))authorKey=authorKey.split(',').reverse().join(' ').trim();
+    authorKey=authorKey.toLowerCase().replace(/\s+/g,' ');
+    const country=AUTHOR_COUNTRY[authorKey];
     if(country){
       if(!result[country])result[country]=[];
       if(!result[country].includes(b.title))result[country].push(b.title);
