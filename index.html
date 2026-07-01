@@ -4929,6 +4929,28 @@ function _groupTimeAgo(iso){
   return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
 
+function backendGroupPostHtml(p,slug){
+  const u=p.user||{};
+  const safe=(p.body||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const isMe=currentUser&&u.id===currentUser.id;
+  const avatar=u.avatarUrl
+    ?`<img src="${u.avatarUrl}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    :`<div class="avatar" style="font-size:16px;background:rgba(255,255,255,.05);flex-shrink:0">📖</div>`;
+  return`<div class="post-card">
+    <div class="post-header">
+      ${avatar}
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="post-user-name">${u.displayName||u.username||'Member'}</div>
+          ${isMe?`<span class="you-badge">You</span>`:''}
+        </div>
+        <div class="post-time">${_groupTimeAgo(p.createdAt)}</div>
+      </div>
+    </div>
+    <div style="font-size:14px;line-height:1.55;margin-bottom:6px;white-space:pre-wrap">${safe}</div>
+  </div>`;
+}
+
 async function openBackendGroup(slug){
   const el=document.getElementById('group-detail');
   const browse=document.getElementById('groups-browse');
@@ -4937,7 +4959,6 @@ async function openBackendGroup(slug){
   el.classList.add('active');
   el.innerHTML=`<div style="padding:32px;text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⏳</div><div>Loading group…</div></div>`;
   try{
-    // Fetch group info and posts in parallel
     const [data,postsData]=await Promise.all([
       apiCall('GET',`/groups/${slug}`),
       apiCall('GET',`/groups/${slug}/posts`).catch(()=>null),
@@ -4948,64 +4969,123 @@ async function openBackendGroup(slug){
     const isMember=!!(data?.membership)||members.some(m=>m.userId===currentUser?.id);
     const isAdmin=members.some(m=>m.role==='admin'&&m.userId===currentUser?.id);
     const posts=postsData?.posts||[];
+    const memberCount=g.memberCount||members.length;
+    const privacy=g.isPrivate?'private':'public';
+    const status=isAdmin?'creator':isMember?'member':'none';
 
-    // Member chips
-    const memberCards=members.slice(0,16).map(m=>{
+    const postCards=posts.map(p=>backendGroupPostHtml(p,slug)).join('');
+
+    const memberRows=members.map(m=>{
       const u=m.user||{};
-      return`<div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:99px;padding:5px 10px 5px 6px">
-        ${u.avatarUrl?`<img src="${u.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">📖</div>`}
-        <span style="font-size:12px;font-weight:600">${u.displayName||u.username||'Member'}</span>
-        ${m.role==='admin'?`<span style="font-size:9px;color:var(--accent);font-weight:700;margin-left:2px">ADMIN</span>`:''}
-      </div>`;
-    }).join('');
-
-    // Post cards
-    const postCards=posts.map(p=>{
-      const u=p.user||{};
-      const safe=(p.body||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return`<div style="border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;background:var(--surface)">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          ${u.avatarUrl?`<img src="${u.avatarUrl}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:34px;height:34px;border-radius:50%;background:#6366f120;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📖</div>`}
-          <div>
-            <div style="font-weight:700;font-size:13px">${u.displayName||u.username||'Member'}</div>
-            <div style="font-size:11px;color:var(--muted)">@${u.username||''} · ${_groupTimeAgo(p.createdAt)}</div>
-          </div>
+      const isThisAdmin=m.role==='admin';
+      const avatar=u.avatarUrl
+        ?`<img src="${u.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+        :`<div class="avatar" style="width:32px;height:32px;font-size:15px;background:#6366f125;flex-shrink:0">📖</div>`;
+      return`<div class="member-row">
+        ${avatar}
+        <div class="member-info">
+          <div class="member-name">${u.displayName||u.username||'Member'}</div>
+          <div class="member-badges">${isThisAdmin?`<span class="creator-crown">👑 Admin</span>`:''}</div>
         </div>
-        <div style="font-size:14px;line-height:1.65;white-space:pre-wrap">${safe}</div>
       </div>`;
     }).join('');
 
     el.innerHTML=`
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="renderGroupsTab()" style="font-size:12px;padding:6px 10px;flex-shrink:0">← Back</button>
-        <div style="font-size:28px;flex-shrink:0">👥</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name}</div>
-          <div style="font-size:12px;color:var(--muted)">${g.isPrivate?'🔒 Private':'🌍 Public'} · ${g.memberCount||members.length} member${(g.memberCount||members.length)!==1?'s':''}</div>
-        </div>
-        ${authToken&&!isMember?`<button class="btn btn-primary btn-sm" id="join-btn-${g.slug}" onclick="joinBackendGroup('${g.slug}')">Join Group</button>`:''}
-        ${isMember&&!isAdmin?`<button class="btn btn-ghost btn-sm" onclick="leaveBackendGroup('${g.slug}')">Leave</button>`:''}
-        ${isAdmin?`<span style="font-size:11px;font-weight:800;color:var(--accent);background:var(--surface2);padding:4px 10px;border-radius:99px">ADMIN</span>`:''}
-      </div>
-      ${g.description?`<div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.55;padding:12px 14px;background:var(--surface2);border-radius:10px">${g.description}</div>`:''}
-      ${!authToken?`<div style="font-size:13px;color:var(--muted);margin-bottom:20px;padding:14px;background:var(--surface2);border-radius:12px;text-align:center"><a onclick="showAuthModal()" style="color:var(--accent);cursor:pointer;font-weight:700">Sign in</a> to join and post in this group</div>`:''}
-      ${isMember?`
-        <div style="margin-bottom:20px;border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--surface)">
-          <textarea id="grp-compose-${g.slug}" placeholder="Share something with the group…" style="width:100%;background:transparent;border:none;outline:none;resize:none;font-size:14px;color:var(--text);font-family:inherit;min-height:72px" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
-          <div style="display:flex;justify-content:flex-end;margin-top:8px">
-            <button class="btn btn-primary btn-sm" onclick="postToBackendGroup('${g.slug}')">Post</button>
+      <button onclick="backToGroups()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:6px">← Back to Groups</button>
+      <div class="group-detail-header" style="background:#7c72f518;border:1px solid #7c72f530">
+        <div class="group-detail-icon">👥</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+            <div class="group-detail-title">${g.name}</div>
+            ${privacyBadge(privacy)}
+            ${statusBadge(status,{})}
           </div>
-        </div>`:''}
-      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">Discussion (${posts.length})</div>
-      <div id="grp-posts-${g.slug}">
-        ${postCards||`<div style="text-align:center;padding:28px 0;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">💬</div><div style="font-size:13px">${isMember?'No posts yet — start the conversation!':'Join this group to see and post in the discussion.'}</div></div>`}
+          ${g.description?`<div class="group-detail-desc">${g.description}</div>`:''}
+          <div style="display:flex;gap:12px;font-size:12px;color:rgba(255,255,255,.7)">
+            <span>👥 ${memberCount} member${memberCount!==1?'s':''}</span>
+            <span>📝 ${posts.length} post${posts.length!==1?'s':''}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-self:flex-start;flex-shrink:0">
+          ${authToken&&!isMember&&privacy==='public'?`<button class="btn btn-green btn-sm" id="join-btn-${g.slug}" onclick="joinBackendGroup('${g.slug}')">Join Group</button>`:''}
+          ${authToken&&!isMember&&privacy==='private'?`<button class="btn btn-secondary btn-sm" disabled title="Invitation required">🔒 Private</button>`:''}
+          ${isMember&&!isAdmin?`<button class="btn btn-ghost btn-sm" onclick="leaveBackendGroup('${g.slug}')">Leave</button>`:''}
+        </div>
       </div>
-      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px;margin-top:24px">Members (${members.length})</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-        ${memberCards||'<div style="color:var(--muted);font-size:12px">No members yet — be the first to join!</div>'}
+
+      <div class="group-tabs" style="margin-bottom:16px">
+        <button class="group-tab active">📝 Posts</button>
+      </div>
+
+      <div class="group-detail-layout">
+        <div>
+          ${isMember?`
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+              ${myProfile.picUrl?`<img src="${myProfile.picUrl}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div class="avatar" style="background:${(myProfile.color||'#7c72f5')}20;font-size:18px;flex-shrink:0">${myProfile.avatar||'📖'}</div>`}
+              <div onclick="openBackendGroupPostModal('${g.slug}')" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:10px 16px;cursor:pointer;color:var(--muted);font-size:13px">Share something with the group…</div>
+              <button class="btn btn-primary btn-sm" onclick="openBackendGroupPostModal('${g.slug}')">+ Post</button>
+            </div>`
+          :authToken?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:14px;color:var(--muted);font-size:13px">${privacy==='private'?'🔒 Join this group to see posts and participate':'Join this group to share your reviews here'}</div>`
+          :`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:14px;color:var(--muted);font-size:13px"><a onclick="showAuthModal()" style="color:var(--accent);cursor:pointer;font-weight:700">Sign in</a> to join and post in this group</div>`}
+
+          <div class="group-feed">
+            ${postCards||`<div style="color:var(--muted);font-size:13px;padding:20px;text-align:center">No posts yet.${isMember?' Be the first to share!':''}</div>`}
+          </div>
+        </div>
+
+        <div class="group-sidebar-panel">
+          <div class="sidebar-widget">
+            <div class="widget-title">Members (${memberCount})</div>
+            ${memberRows||'<div style="font-size:12px;color:var(--muted)">No members yet</div>'}
+          </div>
+        </div>
       </div>`;
   }catch(e){
-    el.innerHTML=`<div style="padding:24px"><button class="btn btn-ghost" onclick="renderGroupsTab()" style="margin-bottom:16px">← Back</button><div style="color:var(--muted)">Failed to load group. Check your connection.</div></div>`;
+    el.innerHTML=`<div style="padding:24px"><button onclick="backToGroups()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;margin-bottom:16px">← Back to Groups</button><div style="color:var(--muted)">Failed to load group. ${e.message||'Check your connection.'}</div></div>`;
+  }
+}
+
+function openBackendGroupPostModal(slug){
+  const existing=document.getElementById('backend-group-post-modal');
+  if(existing)existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='backend-group-post-modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML=`
+    <div style="background:var(--surface);border-radius:16px;width:100%;max-width:480px;border:1px solid var(--border);padding:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div style="font-size:16px;font-weight:800">Post to Group</div>
+        <button onclick="document.getElementById('backend-group-post-modal').remove()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--muted)">×</button>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        ${myProfile.picUrl?`<img src="${myProfile.picUrl}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div class="avatar" style="background:${(myProfile.color||'#7c72f5')}20;font-size:18px;flex-shrink:0">${myProfile.avatar||'📖'}</div>`}
+        <textarea id="bgp-textarea" placeholder="Share a thought, review, or question with the group…" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:14px;color:var(--text);font-family:inherit;min-height:100px;resize:vertical;outline:none" autofocus></textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('backend-group-post-modal').remove()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="submitBackendGroupPost('${slug}')">Post</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+  setTimeout(()=>document.getElementById('bgp-textarea')?.focus(),50);
+}
+
+async function submitBackendGroupPost(slug){
+  const ta=document.getElementById('bgp-textarea');
+  if(!ta)return;
+  const text=ta.value.trim();
+  if(!text)return;
+  const btn=document.querySelector('#backend-group-post-modal .btn-primary');
+  if(btn){btn.disabled=true;btn.textContent='Posting…';}
+  try{
+    await apiCall('POST',`/groups/${slug}/posts`,{body:text});
+    document.getElementById('backend-group-post-modal')?.remove();
+    showToast('Posted!');
+    openBackendGroup(slug);
+  }catch(e){
+    showToast(e.message||'Could not post');
+    if(btn){btn.disabled=false;btn.textContent='Post';}
   }
 }
 
@@ -5034,22 +5114,8 @@ async function leaveBackendGroup(slug){
   }catch(e){showToast(e.message||'Could not leave group');}
 }
 
-async function postToBackendGroup(slug){
-  if(!authToken){showToast('Sign in to post');return;}
-  const ta=document.getElementById(`grp-compose-${slug}`);
-  if(!ta)return;
-  const text=ta.value.trim();
-  if(!text)return;
-  ta.disabled=true;
-  try{
-    await apiCall('POST',`/groups/${slug}/posts`,{body:text});
-    showToast('Posted!');
-    openBackendGroup(slug);
-  }catch(e){
-    showToast(e.message||'Could not post');
-    ta.disabled=false;
-  }
-}
+// legacy shim — kept so old inline calls don't break
+async function postToBackendGroup(slug){openBackendGroupPostModal(slug);}
 
 // ═══════════════════════════════════════════════
 //  GROUPS — ACTIONS
