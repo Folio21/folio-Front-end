@@ -12718,14 +12718,70 @@ function markFinishedFromProgress(bookId){
 //  DISCOVER CURATION HELPERS
 // ═══════════════════════════════════════════════
 const DISCOVER_MOODS=[
-  {label:'Something Epic',emoji:'⚔️',bg:'rgba(124,114,245,.15)',sub:'Worlds to get lost in',genres:['Fantasy','Sci-Fi']},
-  {label:'Thrillers',emoji:'🔪',bg:'rgba(55,65,81,.6)',sub:'Mystery & suspense',genres:['Mystery','Thriller']},
-  {label:'Make Me Cry',emoji:'😭',bg:'rgba(239,68,68,.13)',sub:'Emotional gut-punches',genres:['Fiction']},
-  {label:'Mind-Bending',emoji:'🌀',bg:'rgba(99,102,241,.16)',sub:'Books that rewire you',genres:['Sci-Fi','Non-Fiction']},
-  {label:'Feel-Good',emoji:'☀️',bg:'rgba(180,83,9,.3)',sub:'Warm & uplifting',genres:['Fiction','Romance','Self-Help']},
-  {label:'True Stories',emoji:'📰',bg:'rgba(223,168,58,.13)',sub:'Stranger than fiction',genres:['Non-Fiction']},
-  {label:'Sci-Fi',emoji:'🚀',bg:'rgba(29,78,216,.35)',sub:'Space & speculative',genres:['Sci-Fi']},
-  {label:'Literary',emoji:'💜',bg:'rgba(76,29,149,.4)',sub:'Character-driven fiction',genres:['Fiction']},
+  {label:'Something Epic',emoji:'⚔️',bg:'rgba(124,114,245,.15)',sub:'Worlds to get lost in',genres:['Fantasy','Sci-Fi'],books:[
+    {title:'The Way of Kings',author:'Brandon Sanderson',genre:'Fantasy',year:2010,desc:'An epic fantasy in a world of storms, where shards of god-like power reshape civilisations.',cover:'https://covers.openlibrary.org/b/id/7429768-M.jpg'},
+    {title:'Mistborn',author:'Brandon Sanderson',genre:'Fantasy',year:2006,desc:'A world where ash falls from the sky and a crew of thieves plot to overthrow an immortal ruler.',cover:'https://covers.openlibrary.org/b/id/8383946-M.jpg'},
+    {title:'Dune',author:'Frank Herbert',genre:'Sci-Fi',year:1965,desc:'The epic saga of a desert planet, a noble family, and the most valuable resource in the universe.',cover:'https://covers.openlibrary.org/b/id/8792030-M.jpg'},
+    {title:'The Name of the Wind',author:'Patrick Rothfuss',genre:'Fantasy',year:2007,desc:'The legendary Kvothe tells the story of his life — magic, music, and myth.',cover:'https://covers.openlibrary.org/b/id/6698942-M.jpg'},
+    {title:'The Blade Itself',author:'Joe Abercrombie',genre:'Fantasy',year:2006,desc:'Grimdark fantasy at its best — heroes who are not, villains who are almost sympathetic.',cover:'https://covers.openlibrary.org/b/id/8383566-M.jpg'},
+    {title:'The Three-Body Problem',author:'Liu Cixin',genre:'Sci-Fi',year:2008,desc:'First contact — but not the kind humanity hoped for. A sci-fi landmark.',cover:'https://covers.openlibrary.org/b/id/8174978-M.jpg'},
+  ]},
+  {label:'Thrillers',emoji:'🔪',bg:'rgba(55,65,81,.6)',sub:'Mystery & suspense',genres:['Mystery','Thriller'],books:[
+    {title:'Gone Girl',author:'Gillian Flynn',genre:'Thriller',year:2012,desc:'A wife goes missing on her anniversary. Her husband is the prime suspect. Neither is telling the truth.',cover:'https://covers.openlibrary.org/b/id/8233596-M.jpg'},
+    {title:'The Silent Patient',author:'Alex Michaelides',genre:'Thriller',year:2019,desc:'A famous painter shoots her husband and never speaks another word. A therapist becomes obsessed with why.',cover:'https://covers.openlibrary.org/b/id/8942571-M.jpg'},
+    {title:'The Thursday Murder Club',author:'Richard Osman',genre:'Mystery',year:2020,desc:'Four retirees in a peaceful village solve cold cases — until a real murder lands on their doorstep.',cover:'https://covers.openlibrary.org/b/id/10521822-M.jpg'},
+    {title:'In the Woods',author:'Tana French',genre:'Mystery',year:2007,desc:'A detective investigates a murder near the woods where he lost his childhood friends.',cover:'https://covers.openlibrary.org/b/id/8733398-M.jpg'},
+    {title:'Big Little Lies',author:'Liane Moriarty',genre:'Thriller',year:2014,desc:'Three mothers, a school fundraiser, and a murder. Dark, funny, and completely gripping.',cover:'https://covers.openlibrary.org/b/id/8733462-M.jpg'},
+    {title:'The Girl with the Dragon Tattoo',author:'Stieg Larsson',genre:'Thriller',year:2005,desc:'A journalist and a hacker investigate a decades-old disappearance within a powerful Swedish family.',cover:'https://covers.openlibrary.org/b/id/8394962-M.jpg'},
+  ]},
+  {label:'Make Me Cry',emoji:'😭',bg:'rgba(239,68,68,.13)',sub:'Emotional gut-punches',genres:['Fiction'],books:[
+    {title:'A Little Life',author:'Hanya Yanagihara',genre:'Fiction',year:2015,desc:'Four friends in New York, and the devastating secrets one of them carries.',cover:'https://covers.openlibrary.org/b/id/8144904-M.jpg'},
+    {title:'The Seven Husbands of Evelyn Hugo',author:'Taylor Jenkins Reid',genre:'Fiction',year:2017,desc:'A reclusive Hollywood icon finally tells her scandalous, devastating story.',cover:'https://covers.openlibrary.org/b/id/8354226-M.jpg'},
+    {title:'Normal People',author:'Sally Rooney',genre:'Fiction',year:2018,desc:'Two people from the same small town navigate love, class, and identity across years.',cover:'https://covers.openlibrary.org/b/id/8794265-M.jpg'},
+    {title:'The Midnight Library',author:'Matt Haig',genre:'Fiction',year:2020,desc:'A library between life and death where every book is a chance at a different life.',cover:'https://covers.openlibrary.org/b/id/15164860-M.jpg'},
+    {title:'Demon Copperhead',author:'Barbara Kingsolver',genre:'Fiction',year:2022,desc:'A Pulitzer-winning retelling of David Copperfield set in the Appalachian opioid crisis.',cover:'https://covers.openlibrary.org/b/id/14817076-M.jpg'},
+    {title:'Where the Crawdads Sing',author:'Delia Owens',genre:'Fiction',year:2018,desc:'A girl raised alone in the North Carolina marshes becomes the suspect in a local murder.',cover:'https://covers.openlibrary.org/b/id/8963500-M.jpg'},
+  ]},
+  {label:'Mind-Bending',emoji:'🌀',bg:'rgba(99,102,241,.16)',sub:'Books that rewire you',genres:['Sci-Fi','Non-Fiction'],books:[
+    {title:'The Three-Body Problem',author:'Liu Cixin',genre:'Sci-Fi',year:2008,desc:'First contact — but not the kind humanity hoped for. A sci-fi landmark.',cover:'https://covers.openlibrary.org/b/id/8174978-M.jpg'},
+    {title:'Piranesi',author:'Susanna Clarke',genre:'Fantasy',year:2020,desc:'A man lives alone in a magical house of infinite halls — but he is not truly alone.',cover:'https://covers.openlibrary.org/b/id/10226290-M.jpg'},
+    {title:'Project Hail Mary',author:'Andy Weir',genre:'Sci-Fi',year:2021,desc:'A lone astronaut wakes up with no memory — and the fate of Earth in his hands.',cover:'https://covers.openlibrary.org/b/id/12455001-M.jpg'},
+    {title:'Flowers for Algernon',author:'Daniel Keyes',genre:'Sci-Fi',year:1966,desc:'A man\'s intelligence is artificially increased — told through journal entries. Wrecking.',cover:'https://covers.openlibrary.org/b/id/8233470-M.jpg'},
+    {title:'The Martian',author:'Andy Weir',genre:'Sci-Fi',year:2011,desc:'An astronaut is stranded on Mars with only his wits and botany degree to survive.',cover:'https://covers.openlibrary.org/b/id/8397962-M.jpg'},
+    {title:'Recursion',author:'Blake Crouch',genre:'Sci-Fi',year:2019,desc:'A neuroscientist and a detective uncover a technology that can rewrite memory — and reality.',cover:'https://covers.openlibrary.org/b/id/9366095-M.jpg'},
+  ]},
+  {label:'Feel-Good',emoji:'☀️',bg:'rgba(180,83,9,.3)',sub:'Warm & uplifting',genres:['Fiction','Romance','Self-Help'],books:[
+    {title:'The House in the Cerulean Sea',author:'TJ Klune',genre:'Fantasy',year:2020,desc:'A cozy fantasy about a caseworker tasked with looking after magical children. Purely delightful.',cover:'https://covers.openlibrary.org/b/id/10474443-M.jpg'},
+    {title:'Legends & Lattes',author:'Travis Baldree',genre:'Fantasy',year:2022,desc:'A retired orc warrior opens a coffee shop. Wholesome fantasy perfection.',cover:'https://covers.openlibrary.org/b/id/13008778-M.jpg'},
+    {title:'The Hitchhiker\'s Guide to the Galaxy',author:'Douglas Adams',genre:'Sci-Fi',year:1979,desc:'The funniest sci-fi ever written. Don\'t panic.',cover:'https://covers.openlibrary.org/b/id/8406786-M.jpg'},
+    {title:'Beach Read',author:'Emily Henry',genre:'Romance',year:2020,desc:'Two rival writers swap genres for the summer — and everything else too.',cover:'https://covers.openlibrary.org/b/id/10266313-M.jpg'},
+    {title:'The Alchemist',author:'Paulo Coelho',genre:'Fiction',year:1988,desc:'A shepherd boy travels from Spain to Egypt in search of treasure and finds something greater.',cover:'https://covers.openlibrary.org/b/id/8371163-M.jpg'},
+    {title:'Good Omens',author:'Terry Pratchett & Neil Gaiman',genre:'Fantasy',year:1990,desc:'An angel and a demon team up to stop the apocalypse. Warm, funny, and completely unputdownable.',cover:'https://covers.openlibrary.org/b/id/8419009-M.jpg'},
+  ]},
+  {label:'True Stories',emoji:'📰',bg:'rgba(223,168,58,.13)',sub:'Stranger than fiction',genres:['Non-Fiction'],books:[
+    {title:'Educated',author:'Tara Westover',genre:'Non-Fiction',year:2018,desc:'A woman grows up in a survivalist family with no schooling and earns a Cambridge PhD.',cover:'https://covers.openlibrary.org/b/id/8735416-M.jpg'},
+    {title:'Sapiens',author:'Yuval Noah Harari',genre:'Non-Fiction',year:2011,desc:'A sweeping history of humankind from the Stone Age to the twenty-first century.',cover:'https://covers.openlibrary.org/b/id/8594920-M.jpg'},
+    {title:'When Breath Becomes Air',author:'Paul Kalanithi',genre:'Non-Fiction',year:2016,desc:'A neurosurgeon faces his own mortality and writes about what makes life meaningful.',cover:'https://covers.openlibrary.org/b/id/8354280-M.jpg'},
+    {title:'Bad Blood',author:'John Carreyrou',genre:'Non-Fiction',year:2018,desc:'The rise and fall of Theranos — one of Silicon Valley\'s greatest frauds.',cover:'https://covers.openlibrary.org/b/id/8944084-M.jpg'},
+    {title:'The Glass Castle',author:'Jeannette Walls',genre:'Non-Fiction',year:2005,desc:'A memoir about an unconventional, deeply dysfunctional, and oddly loving family.',cover:'https://covers.openlibrary.org/b/id/8406780-M.jpg'},
+    {title:'I\'m Glad My Mom Died',author:'Jennette McCurdy',genre:'Non-Fiction',year:2022,desc:'A former child actor\'s darkly funny and devastating account of abuse, eating disorders, and healing.',cover:'https://covers.openlibrary.org/b/id/13009182-M.jpg'},
+  ]},
+  {label:'Sci-Fi',emoji:'🚀',bg:'rgba(29,78,216,.35)',sub:'Space & speculative',genres:['Sci-Fi'],books:[
+    {title:'Project Hail Mary',author:'Andy Weir',genre:'Sci-Fi',year:2021,desc:'A lone astronaut wakes up with no memory — and the fate of Earth in his hands.',cover:'https://covers.openlibrary.org/b/id/12455001-M.jpg'},
+    {title:'Dune',author:'Frank Herbert',genre:'Sci-Fi',year:1965,desc:'The epic saga of a desert planet, a noble family, and the most valuable resource in the universe.',cover:'https://covers.openlibrary.org/b/id/8792030-M.jpg'},
+    {title:'The Three-Body Problem',author:'Liu Cixin',genre:'Sci-Fi',year:2008,desc:'First contact — but not the kind humanity hoped for. A sci-fi landmark.',cover:'https://covers.openlibrary.org/b/id/8174978-M.jpg'},
+    {title:'Ender\'s Game',author:'Orson Scott Card',genre:'Sci-Fi',year:1985,desc:'A child genius is trained to save humanity from an alien invasion — or is he?',cover:'https://covers.openlibrary.org/b/id/8185423-M.jpg'},
+    {title:'The Martian',author:'Andy Weir',genre:'Sci-Fi',year:2011,desc:'An astronaut is stranded on Mars with only his wits and botany degree to survive.',cover:'https://covers.openlibrary.org/b/id/8397962-M.jpg'},
+    {title:'Recursion',author:'Blake Crouch',genre:'Sci-Fi',year:2019,desc:'A neuroscientist and a detective uncover a technology that can rewrite memory — and reality.',cover:'https://covers.openlibrary.org/b/id/9366095-M.jpg'},
+  ]},
+  {label:'Literary',emoji:'💜',bg:'rgba(76,29,149,.4)',sub:'Character-driven fiction',genres:['Fiction'],books:[
+    {title:'Normal People',author:'Sally Rooney',genre:'Fiction',year:2018,desc:'Two people from the same small town navigate love, class, and identity across years.',cover:'https://covers.openlibrary.org/b/id/8794265-M.jpg'},
+    {title:'A Little Life',author:'Hanya Yanagihara',genre:'Fiction',year:2015,desc:'Four friends in New York, and the devastating secrets one of them carries.',cover:'https://covers.openlibrary.org/b/id/8144904-M.jpg'},
+    {title:'Tomorrow, and Tomorrow, and Tomorrow',author:'Gabrielle Zevin',genre:'Fiction',year:2022,desc:'Two friends build video games together across three decades — and everything that comes with it.',cover:'https://covers.openlibrary.org/b/id/12816990-M.jpg'},
+    {title:'The Remains of the Day',author:'Kazuo Ishiguro',genre:'Fiction',year:1989,desc:'A butler reflects on his life. Slow, devastating, and quietly perfect.',cover:'https://covers.openlibrary.org/b/id/8233920-M.jpg'},
+    {title:'Demon Copperhead',author:'Barbara Kingsolver',genre:'Fiction',year:2022,desc:'A Pulitzer-winning retelling of David Copperfield set in the Appalachian opioid crisis.',cover:'https://covers.openlibrary.org/b/id/14817076-M.jpg'},
+    {title:'Intermezzo',author:'Sally Rooney',genre:'Fiction',year:2024,desc:'Two brothers navigate grief and love in ways that surprise them both.',cover:'https://covers.openlibrary.org/b/id/14893762-M.jpg'},
+  ]},
   {label:'Spice',emoji:'🌶️',bg:'rgba(190,18,60,.25)',sub:'Steamy & swoony romance',genres:['Romance']},
 ];
 const STAFF_PICKS=[
@@ -12740,11 +12796,17 @@ function renderMoodPicks(label){
   const mood=DISCOVER_MOODS.find(m=>m.label===label);
   if(!mood)return;
   const myTitles=new Set(books.map(b=>b.title.toLowerCase()));
-  const pool=getAllDiscoverBooks();
-  const genreSet=new Set(mood.genres.map(g=>g.toLowerCase()));
-  let picks=pool.filter(b=>b.genre&&genreSet.has(b.genre.toLowerCase()));
-  if(picks.length<4)picks=pool.slice(0,12);
-  const shown=picks.filter((b,i,arr)=>arr.findIndex(x=>x.title===b.title)===i);
+  let shown;
+  if(mood.books&&mood.books.length){
+    // Use curated list if available
+    shown=mood.books;
+  }else{
+    const pool=getAllDiscoverBooks();
+    const genreSet=new Set(mood.genres.map(g=>g.toLowerCase()));
+    let picks=pool.filter(b=>b.genre&&genreSet.has(b.genre.toLowerCase()));
+    if(picks.length<4)picks=pool.slice(0,12);
+    shown=picks.filter((b,i,arr)=>arr.findIndex(x=>x.title===b.title)===i);
+  }
 
   const rows=shown.map(b=>{
     const onShelf=myTitles.has(b.title.toLowerCase());
