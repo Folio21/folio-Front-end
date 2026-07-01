@@ -14093,18 +14093,62 @@ const COUNTRY_BOOKS={
   'Pakistan':['The Kite Runner','A Thousand Splendid Suns'],
 };
 
+// nationality adjective → country name
+const NATIONALITY_COUNTRY={
+  'american':'United States','british':'United Kingdom','english':'United Kingdom',
+  'scottish':'United Kingdom','welsh':'United Kingdom','irish':'Ireland',
+  'japanese':'Japan','french':'France','german':'Germany','russian':'Russia',
+  'spanish':'Spain','italian':'Italy','portuguese':'Portugal','brazilian':'Brazil',
+  'mexican':'Mexico','colombian':'Colombia','argentinian':'Argentina','argentine':'Argentina',
+  'chilean':'Chile','peruvian':'Peru','venezuelan':'Venezuela','cuban':'Cuba',
+  'canadian':'Canada','australian':'Australia','new zealand':'New Zealand',
+  'nigerian':'Nigeria','ghanaian':'Ghana','kenyan':'Kenya','south african':'South Africa',
+  'ugandan':'Uganda','tanzanian':'Tanzania','egyptian':'Egypt','moroccan':'Morocco',
+  'algerian':'Algeria','ethiopian':'Ethiopia','senegalese':'Senegal',
+  'chinese':'China','indian':'India','korean':'South Korea','south korean':'South Korea',
+  'pakistani':'Pakistan','afghan':'Afghanistan','iranian':'Iran','turkish':'Turkey',
+  'swedish':'Sweden','norwegian':'Norway','danish':'Denmark','finnish':'Finland',
+  'dutch':'Netherlands','belgian':'Belgium','swiss':'Switzerland','austrian':'Austria',
+  'polish':'Poland','czech':'Czech Republic','hungarian':'Hungary','romanian':'Romania',
+  'greek':'Greece','israeli':'Israel','lebanese':'Lebanon','iraqi':'Iraq',
+  'south american':'Argentina','latin american':'Mexico','caribbean':'Cuba',
+  'jamaican':'Jamaica','haitian':'Haiti','trinidadian':'Trinidad and Tobago',
+  'tanzanian':'Tanzania','cameroonian':'Cameroon','zimbabwean':'Zimbabwe',
+  'ugandan':'Uganda','rwandan':'Rwanda','somalian':'Somalia','sudanese':'Sudan',
+  'philippine':'Philippines','filipino':'Philippines','indonesian':'Indonesia',
+  'malaysian':'Malaysia','thai':'Thailand','vietnamese':'Vietnam','cambodian':'Cambodia',
+  'bangladeshi':'Bangladesh','sri lankan':'Sri Lanka','nepali':'Nepal',
+  'ukrainian':'Ukraine','belarusian':'Belarus','georgian':'Georgia','armenian':'Armenia',
+  'kazakhstani':'Kazakhstan','uzbek':'Uzbekistan',
+};
+
 function getBooksReadByCountry(){
-  const myTitles=new Set(books.filter(b=>b.status==='read').map(b=>b.title));
+  const readBooks=books.filter(b=>b.status==='read');
+  const myTitles=new Set(readBooks.map(b=>b.title.toLowerCase()));
   const result={};
+
+  // 1. Match by hardcoded title list (case-insensitive)
   Object.entries(COUNTRY_BOOKS).forEach(([country,titles])=>{
-    const matches=titles.filter(t=>myTitles.has(t));
+    const matches=titles.filter(t=>myTitles.has(t.toLowerCase()));
     if(matches.length)result[country]=matches;
   });
-  // Also check book.country field if set
-  books.filter(b=>b.status==='read'&&b.country).forEach(b=>{
+
+  // 2. book.country field
+  readBooks.filter(b=>b.country).forEach(b=>{
     if(!result[b.country])result[b.country]=[];
     if(!result[b.country].includes(b.title))result[b.country].push(b.title);
   });
+
+  // 3. authorNationality field → map to country
+  readBooks.filter(b=>b.authorNationality&&!b.country).forEach(b=>{
+    const nat=(b.authorNationality||'').toLowerCase().trim();
+    const country=NATIONALITY_COUNTRY[nat];
+    if(country){
+      if(!result[country])result[country]=[];
+      if(!result[country].includes(b.title))result[country].push(b.title);
+    }
+  });
+
   return result;
 }
 
@@ -14186,14 +14230,30 @@ function showMapCountryDetail(country){
 //  3D GLOBE
 // ═══════════════════════════════════════════════════════════════════
 var GLOBE_COORDS = {
-  'Japan':[35.68,139.69], 'France':[48.85,2.35], 'Nigeria':[9.08,8.68],
-  'Russia':[55.75,37.62], 'Colombia':[4.71,-74.07], 'India':[20.59,78.96],
-  'USA':[37.09,-95.71], 'UK':[51.51,-0.13], 'South Korea':[37.57,126.98],
-  'Morocco':[31.79,-7.09], 'Argentina':[-34.62,-58.44], 'Germany':[51.17,10.45],
-  'Egypt':[26.82,30.80], 'Mexico':[23.63,-102.55], 'Iran':[32.43,53.69],
-  'South Africa':[-30.56,22.94], 'China':[35.86,104.20], 'Italy':[41.87,12.57],
-  'Brazil':[-14.24,-51.93], 'Norway':[60.47,8.47], 'Ghana':[7.95,-1.02],
-  'Chile':[-35.68,-71.54], 'Peru':[-9.19,-75.02]
+  'Japan':[35.68,139.69],'France':[48.85,2.35],'Nigeria':[9.08,8.68],
+  'Russia':[55.75,37.62],'Colombia':[4.71,-74.07],'India':[20.59,78.96],
+  'United States':[37.09,-95.71],'USA':[37.09,-95.71],
+  'United Kingdom':[51.51,-0.13],'UK':[51.51,-0.13],
+  'South Korea':[37.57,126.98],'Morocco':[31.79,-7.09],
+  'Argentina':[-34.62,-58.44],'Germany':[51.17,10.45],
+  'Egypt':[26.82,30.80],'Mexico':[23.63,-102.55],'Iran':[32.43,53.69],
+  'South Africa':[-30.56,22.94],'China':[35.86,104.20],'Italy':[41.87,12.57],
+  'Brazil':[-14.24,-51.93],'Norway':[60.47,8.47],'Ghana':[7.95,-1.02],
+  'Chile':[-35.68,-71.54],'Peru':[-9.19,-75.02],'Ireland':[53.41,-8.24],
+  'Spain':[40.46,-3.75],'Portugal':[39.40,-8.22],'Canada':[56.13,-106.35],
+  'Australia':[-25.27,133.77],'New Zealand':[-40.90,174.89],
+  'Sweden':[60.13,18.64],'Denmark':[56.26,9.50],'Finland':[61.92,25.75],
+  'Netherlands':[52.13,5.29],'Belgium':[50.50,4.47],'Switzerland':[46.82,8.23],
+  'Austria':[47.52,14.55],'Poland':[51.92,19.14],'Czech Republic':[49.82,15.47],
+  'Hungary':[47.16,19.50],'Romania':[45.94,24.97],'Greece':[39.07,21.82],
+  'Turkey':[38.96,35.24],'Israel':[31.05,34.85],'Lebanon':[33.85,35.86],
+  'Pakistan':[30.38,69.35],'Afghanistan':[33.94,67.71],'Bangladesh':[23.68,90.36],
+  'Sri Lanka':[7.87,80.77],'Nepal':[28.39,84.12],'Philippines':[12.88,121.77],
+  'Indonesia':[-0.79,113.92],'Malaysia':[4.21,101.98],'Thailand':[15.87,100.99],
+  'Vietnam':[14.06,108.28],'Kenya':[-0.02,37.91],'Ethiopia':[9.15,40.49],
+  'Tanzania':[-6.37,34.89],'Uganda':[1.37,32.29],'Senegal':[14.50,-14.45],
+  'Algeria':[28.03,1.66],'Jamaica':[18.11,-77.30],'Cuba':[21.52,-77.78],
+  'Ukraine':[48.38,31.17],'Venezuela':[6.42,-66.59],'Iceland':[64.96,-19.02],
 };
 var globeAnimId = null;
 
