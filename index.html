@@ -3948,7 +3948,86 @@ function cpSelectBook(title,author,coverUrl,colorIdx){
   document.getElementById('cp-book-results').innerHTML='';
   _cpCoverUrl=coverUrl;_cpColorIdx=parseInt(colorIdx)||0;
 }
-function submitCreateReviewPost(){
+// ── BACKEND FEED HELPERS ───────────────────────────────────
+let _serverFeed=[];
+let _serverFeedLoaded=false;
+const _backendIdMap=new Map(); // UUID → local integer id
+let _nextBackendLocalId=2000;
+
+function _localIdForBackend(uuid){
+  if(_backendIdMap.has(uuid))return _backendIdMap.get(uuid);
+  const id=_nextBackendLocalId++;
+  _backendIdMap.set(uuid,id);
+  return id;
+}
+
+function normalizeFeedItem(item){
+  const user=item.user||{};
+  const isMe=!!(currentUser&&user.id===currentUser.id);
+  const localId=_localIdForBackend(item.id);
+  const avatarIsImg=user.avatarUrl&&user.avatarUrl.startsWith('http');
+  if(item.kind==='post'){
+    let bookTitle='',bookAuthor='',review=item.body||'',rating=0,coverUrl=null,colorIdx=0,spoilers=false;
+    try{
+      const parsed=JSON.parse(item.body||'');
+      if(parsed&&parsed._folioPost){
+        bookTitle=parsed.bookTitle||'';bookAuthor=parsed.bookAuthor||'';
+        review=parsed.review||'';rating=parsed.rating||0;
+        coverUrl=parsed.coverUrl||null;colorIdx=parsed.colorIdx||0;spoilers=!!parsed.spoilers;
+      }
+    }catch(e){}
+    return{id:localId,backendId:item.id,userId:user.id||user.username,
+      userName:user.displayName||user.username||'Reader',
+      avatar:avatarIsImg?'📖':(user.avatarUrl||'📖'),
+      avatarUrl:avatarIsImg?user.avatarUrl:null,
+      avatarBg:'#7c72f5',bookTitle,bookAuthor,rating,colorIdx,coverUrl,review,spoilers,
+      date:item.createdAt,likes:item.likesCount||0,liked:false,isMe,saved:false,
+      fromBackend:true,backendUsername:user.username};
+  }else{
+    const book=item.book||{};
+    const verbs={posted_review:'posted a review of',added_book:'added to shelf:',
+      finished_book:'finished reading:',started_book:'started reading:',updated_progress:'updated progress on:'};
+    const verb=(verbs[item.type]||((item.type||'').replace(/_/g,' ')));
+    const bookPart=book.title?` "${book.title}"`:' a book';
+    return{id:localId,backendId:item.id,userId:user.id||user.username,
+      userName:user.displayName||user.username||'Reader',
+      avatar:avatarIsImg?'📖':(user.avatarUrl||'📖'),
+      avatarUrl:avatarIsImg?user.avatarUrl:null,
+      avatarBg:'#7c72f5',bookTitle:book.title||'',
+      bookAuthor:(book.authors||[]).join(', '),rating:0,colorIdx:0,
+      coverUrl:book.coverUrl||null,review:verb+bookPart,spoilers:false,
+      date:item.createdAt,likes:0,liked:false,isMe,saved:false,
+      fromBackend:true,isActivity:true,backendUsername:user.username};
+  }
+}
+
+async function loadFeedFromServer(limit=30){
+  if(!currentUser||!authToken)return false;
+  try{
+    const data=await apiCall('GET',`/feed?limit=${limit}`);
+    if(!data||!Array.isArray(data.items))return false;
+    _serverFeed=data.items.map(normalizeFeedItem);
+    _serverFeedLoaded=true;
+    return true;
+  }catch(e){console.warn('[feed] Failed to load:',e);return false;}
+}
+
+function getPostById(id){
+  return socialPosts.find(x=>x.id===id)||_serverFeed.find(x=>x.id===id);
+}
+
+async function loadBackendGroups(){
+  if(!_backendGroupsLoaded){
+    try{
+      const data=await apiCall('GET','/groups?page=1');
+      if(data?.groups){_backendGroups=data.groups;_backendGroupsLoaded=true;}
+    }catch(e){console.warn('[groups] Failed to load:',e);}
+  }
+}
+let _backendGroups=[];
+let _backendGroupsLoaded=false;
+
+async function submitCreateReviewPost(){
   const title=(document.getElementById('cp-book-title')?.value||'').trim();
   const author=(document.getElementById('cp-book-author')?.value||'').trim();
   const review=(document.getElementById('cp-review-text')?.value||'').trim();
@@ -3956,10 +4035,17 @@ function submitCreateReviewPost(){
   if(!title){showToast('Enter a book title');return;}
   if(!review){showToast('Write a review first');return;}
   const post={id:nextPostId++,userId:'me',userName:myProfile.name||'You',avatar:myProfile.avatar||'📖',avatarBg:myProfile.color||'#7c72f5',bookTitle:title,bookAuthor:author||'Unknown',rating:_cpStar||0,colorIdx:_cpColorIdx,coverUrl:_cpCoverUrl||null,review,spoilers,date:ds(today),likes:0,liked:false,isMe:true,saved:false};
+  if(currentUser&&authToken){
+    try{
+      const postBody=JSON.stringify({_folioPost:true,bookTitle:title,bookAuthor:author||'Unknown',review,rating:_cpStar||0,coverUrl:_cpCoverUrl||null,colorIdx:_cpColorIdx||0,spoilers});
+      const result=await apiCall('POST','/posts',{body:postBody,isPublic:true});
+      if(result?.post?.id){post.backendId=result.post.id;post.fromBackend=true;}
+    }catch(e){console.warn('[social] Backend post failed:',e);}
+  }
   socialPosts.unshift(post);
   document.getElementById('create-post-overlay').remove();
   renderFeed();
-  showToast('Review posted!');
+  showToast(currentUser?'Review posted to your followers\' feeds!':'Review posted!');
   _cpStar=0;_cpCoverUrl='';_cpColorIdx=0;
 }
 function submitCreatePoll(){
@@ -4258,9 +4344,22 @@ function submitStory(){
 // ═══════════════════════════════════════════════
 //  FEED
 // ═══════════════════════════════════════════════
-function renderFeed(){
+async function renderFeed(){
   renderStoriesBar();
-  const sorted=[...socialPosts].sort((a,b)=>b.date.localeCompare(a.date));
+  if(currentUser&&authToken){
+    const feedEl=document.getElementById('social-feed');
+    if(!_serverFeedLoaded&&feedEl)feedEl.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⏳</div><div style="font-size:14px">Loading your feed…</div></div>`;
+    await loadFeedFromServer();
+  }
+  let base;
+  if(_serverFeedLoaded&&_serverFeed.length){
+    const serverIds=new Set(_serverFeed.map(p=>p.backendId).filter(Boolean));
+    const freshLocal=socialPosts.filter(p=>p.fromBackend&&!serverIds.has(p.backendId));
+    base=[...freshLocal,..._serverFeed];
+  }else{
+    base=[...socialPosts];
+  }
+  const sorted=base.filter((p,i,a)=>a.findIndex(x=>x.id===p.id)===i).sort((a,b)=>new Date(b.date)-new Date(a.date));
   document.getElementById('social-feed').innerHTML=sorted.map(p=>{
     if(p.type==='poll') return renderPollPost(p);
     if(p.type==='quote') return renderQuotePost(p);
@@ -4286,9 +4385,9 @@ function renderFeed(){
     return `
     <div class="post-card" id="post-${p.id}">
       <div class="post-header">
-        ${p.isMe&&myProfile.picUrl
-          ?`<img src="${myProfile.picUrl}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;cursor:pointer" onclick="showFriendProfile('${p.userId}')">`
-          :`<div class="avatar" style="background:${p.avatarBg}20;cursor:pointer" onclick="showFriendProfile('${p.userId}')">${p.avatar}</div>`
+        ${(p.isMe&&myProfile.picUrl)||p.avatarUrl
+          ?`<img src="${p.isMe&&myProfile.picUrl?myProfile.picUrl:p.avatarUrl}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;cursor:pointer" onclick="showFriendProfile('${p.userId}')">`
+          :`<div class="avatar" style="background:${p.avatarBg}20;cursor:pointer" onclick="showFriendProfile('${p.userId}')">${p.avatar||'📖'}</div>`
         }
         <div style="flex:1;cursor:pointer" onclick="showFriendProfile('${p.userId}')">
           <div style="display:flex;align-items:center;gap:6px">
@@ -4547,15 +4646,23 @@ function renderTrendingTab(){
     </div>`;
 }
 
-function toggleLike(id){
-  const p=socialPosts.find(x=>x.id===id);
+async function toggleLike(id){
+  const p=getPostById(id);
   if(!p)return;
   p.liked=!p.liked;p.likes+=p.liked?1:-1;
   if(!p.liked)p.reaction=null;
   const btn=document.querySelector(`#rbtn-${id} .action-btn`)||document.querySelector(`#post-${id} .action-btn`);
-  if(!btn)return;
-  btn.classList.toggle('liked',p.liked);
-  btn.innerHTML=`${p.reaction||(p.liked?'❤️':'🤍')} <span id="lc-${id}">${p.likes}</span>`;
+  if(btn){btn.classList.toggle('liked',p.liked);btn.innerHTML=`${p.reaction||(p.liked?'❤️':'🤍')} <span id="lc-${id}">${p.likes}</span>`;}
+  if(p.backendId&&currentUser){
+    try{
+      if(p.liked)await apiCall('POST',`/posts/${p.backendId}/like`);
+      else await apiCall('DELETE',`/posts/${p.backendId}/like`);
+    }catch(e){
+      // rollback on failure
+      p.liked=!p.liked;p.likes+=p.liked?1:-1;
+      if(btn){btn.classList.toggle('liked',p.liked);btn.innerHTML=`${p.reaction||(p.liked?'❤️':'🤍')} <span id="lc-${id}">${p.likes}</span>`;}
+    }
+  }
 }
 function toggleReview(elId,btn){
   const el=document.getElementById(elId);
@@ -4648,7 +4755,7 @@ function toggleComments(id){
 }
 
 function renderCommentSection(id){
-  const p=socialPosts.find(x=>x.id===id);
+  const p=getPostById(id);
   const section=document.getElementById('comments-'+id);
   if(!p||!section)return;
   if(!p.comments)p.comments=[];
@@ -4692,10 +4799,11 @@ function submitComment(id){
 // ═══════════════════════════════════════════════
 //  GROUPS — BROWSE
 // ═══════════════════════════════════════════════
-function renderGroupsTab(){
+async function renderGroupsTab(){
   document.getElementById('groups-browse').style.display='block';
   document.getElementById('group-detail').classList.remove('active');
   currentGroupId=null;
+  if(authToken&&!_backendGroupsLoaded)await loadBackendGroups();
   renderGroupsBrowse();
   renderMyGroupsSidebar();
   renderSuggestedGroups();
@@ -4711,7 +4819,17 @@ function renderGroupsTab(){
 function renderGroupsBrowse(){
   const query=(document.getElementById('group-search')?.value||'').toLowerCase();
   const filter=document.getElementById('group-filter')?.value||'all';
-  let list=[...groups];
+  // Merge demo groups + backend groups (show backend groups first)
+  const backendMapped=_backendGroups.map(g=>({
+    id:'bg_'+g.id,_backendId:g.id,_backendSlug:g.slug,
+    name:g.name,desc:g.description||'',emoji:'👥',color:'#7c72f5',
+    privacy:g.isPrivate?'private':'public',
+    members:[],posts:[],requests:[],creatorId:null,
+    memberCount:g.memberCount||0,
+  }));
+  const knownBackendNames=new Set(backendMapped.map(g=>g.name.toLowerCase()));
+  const localOnly=groups.filter(g=>!knownBackendNames.has(g.name.toLowerCase()));
+  let list=[...backendMapped,...localOnly];
   if(query)list=list.filter(g=>g.name.toLowerCase().includes(query)||g.desc.toLowerCase().includes(query));
   if(filter==='joined')list=list.filter(g=>g.members.includes('me')||g.creatorId==='me');
   if(filter==='public')list=list.filter(g=>g.privacy==='public');
@@ -4719,10 +4837,14 @@ function renderGroupsBrowse(){
 
   document.getElementById('groups-list').innerHTML=list.map(g=>{
     const status=getMembershipStatus(g);
-    return`<div class="group-card" onclick="openGroupDetail(${g.id})">
+    const isBackend=!!g._backendSlug;
+    const onclickAttr=isBackend?`onclick="openBackendGroup('${g._backendSlug}')"`:`onclick="openGroupDetail(${g.id})"`;
+    const memberCount=g.memberCount||g.members.length;
+    const postCount=g.posts?.length||0;
+    return`<div class="group-card" ${onclickAttr}>
       <div class="group-card-banner" style="background:${g.color}22;border-bottom:1px solid ${g.color}40">
         <span style="font-size:28px">${g.emoji}</span>
-        <div style="position:absolute;top:10px;right:10px">${privacyBadge(g.privacy)}</div>
+        <div style="position:absolute;top:10px;right:10px">${privacyBadge(g.privacy)}${isBackend?`<span class="privacy-badge public" style="margin-left:4px">🌐 Live</span>`:''}</div>
       </div>
       <div class="group-card-body">
         <div class="group-card-top">
@@ -4730,13 +4852,13 @@ function renderGroupsBrowse(){
             <div class="group-name">${g.name}</div>
             <div style="margin-top:4px">${statusBadge(status,g)}</div>
           </div>
-          <div onclick="event.stopPropagation()">${groupActionBtn(g,status)}</div>
+          <div onclick="event.stopPropagation()">${isBackend?`<button class="btn btn-primary btn-sm" onclick="openBackendGroup('${g._backendSlug}')">View Group</button>`:groupActionBtn(g,status)}</div>
         </div>
-        <div class="group-desc">${g.desc}</div>
+        <div class="group-desc">${g.desc||''}</div>
         <div class="group-meta">
-          <span>👥 ${g.members.length} member${g.members.length!==1?'s':''}</span>
-          <span>📝 ${g.posts.length} post${g.posts.length!==1?'s':''}</span>
-          ${g.creatorId==='me'&&g.requests.length?`<span style="color:var(--red)">⏳ ${g.requests.length} request${g.requests.length!==1?'s':''}</span>`:''}
+          <span>👥 ${memberCount} member${memberCount!==1?'s':''}</span>
+          ${!isBackend?`<span>📝 ${postCount} post${postCount!==1?'s':''}</span>`:''}
+          ${!isBackend&&g.creatorId==='me'&&g.requests.length?`<span style="color:var(--red)">⏳ ${g.requests.length} request${g.requests.length!==1?'s':''}</span>`:''}
         </div>
       </div>
     </div>`;
@@ -4785,6 +4907,53 @@ function renderSuggestedGroups(){
       </div>
       <div onclick="event.stopPropagation()">${g.privacy==='public'?`<button class="btn btn-green btn-sm" onclick="joinGroup(${g.id},event)">Join</button>`:`<button class="btn btn-secondary btn-sm" onclick="requestAccess(${g.id},event)">Request</button>`}</div>
     </div>`).join('')||`<div style="font-size:12px;color:var(--muted)">You're in all groups!</div>`;
+}
+
+// ── Backend group viewer ──
+async function openBackendGroup(slug){
+  const el=document.getElementById('group-detail');
+  const browse=document.getElementById('groups-browse');
+  if(!el||!browse)return;
+  browse.style.display='none';
+  el.classList.add('active');
+  el.innerHTML=`<div style="padding:24px;text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⏳</div><div>Loading group…</div></div>`;
+  try{
+    const data=await apiCall('GET',`/groups/${slug}`);
+    const g=data?.group;
+    if(!g){el.innerHTML=`<div style="padding:24px;color:var(--muted)">Group not found.</div>`;return;}
+    const members=data?.members||[];
+    const memberUsers=data?.users||[];
+    el.innerHTML=`
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button class="btn btn-ghost" onclick="renderGroupsTab()" style="font-size:12px;padding:6px 10px">← Back</button>
+        <div style="font-size:28px">👥</div>
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:18px">${g.name}</div>
+          <div style="font-size:12px;color:var(--muted)">${g.isPrivate?'🔒 Private':'🌍 Public'} · ${g.memberCount||0} members</div>
+        </div>
+        ${authToken?`<button class="btn btn-primary btn-sm" onclick="joinBackendGroup('${g.slug}',this)">${members.some(m=>m.userId===currentUser?.id)?'✓ Joined':'Join Group'}</button>`:''}
+      </div>
+      ${g.description?`<div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">${g.description}</div>`:''}
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px">Members</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+        ${memberUsers.slice(0,12).map(u=>`<div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:99px;padding:5px 10px 5px 6px">
+          <div style="width:24px;height:24px;border-radius:50%;background:#6366f125;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${u.avatarUrl?`<img src="${u.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`:(u.avatarUrl||'📖')}</div>
+          <span style="font-size:12px;font-weight:600">${u.displayName||u.username}</span>
+        </div>`).join('')}
+        ${memberUsers.length===0?'<div style="color:var(--muted);font-size:12px">No members yet.</div>':''}
+      </div>`;
+  }catch(e){
+    el.innerHTML=`<div style="padding:24px"><button class="btn btn-ghost" onclick="renderGroupsTab()" style="margin-bottom:16px">← Back</button><div style="color:var(--muted)">Failed to load group. Check your connection.</div></div>`;
+  }
+}
+
+async function joinBackendGroup(slug,btn){
+  if(!authToken){showToast('Sign in to join groups');return;}
+  try{
+    await apiCall('POST',`/groups/${slug}/join`);
+    if(btn){btn.textContent='✓ Joined';btn.disabled=true;}
+    showToast('Joined group!');
+  }catch(e){showToast('Could not join group');}
 }
 
 // ═══════════════════════════════════════════════
@@ -6706,22 +6875,34 @@ function updateDmBadge(){
   else b.style.display='none';
 }
 // ── FOLLOWING SYSTEM ──────────────────────────────────
-function followUser(id){
+async function followUser(id){
   following.add(id);
   saveFollowing();
   renderPeopleTab();
-  const p=FOLLOWABLE_POOL.find(x=>x.id===id);
-  if(p)showToast(`Now following ${p.name}!`);
+  const backendUser=_backendUserCache.get(id);
+  const demoUser=FOLLOWABLE_POOL.find(x=>x.id===id);
+  const name=(backendUser?.name)||demoUser?.name||'this user';
+  if(backendUser?._username&&authToken){
+    try{await apiCall('POST',`/users/${backendUser._username}/follow`);}
+    catch(e){console.warn('[follow] backend follow failed:',e);}
+  }
+  showToast(`Now following ${name}!`);
 }
-function unfollowUser(id){
+async function unfollowUser(id){
   following.delete(id);
   saveFollowing();
   renderPeopleTab();
-  const p=FOLLOWABLE_POOL.find(x=>x.id===id);
-  if(p)showToast(`Unfollowed ${p.name}`);
+  const backendUser=_backendUserCache.get(id);
+  const demoUser=FOLLOWABLE_POOL.find(x=>x.id===id);
+  const name=(backendUser?.name)||demoUser?.name||'this user';
+  if(backendUser?._username&&authToken){
+    try{await apiCall('DELETE',`/users/${backendUser._username}/follow`);}
+    catch(e){console.warn('[follow] backend unfollow failed:',e);}
+  }
+  showToast(`Unfollowed ${name}`);
 }
 
-function renderFollowingFeed(){
+async function renderFollowingFeed(){
   // Sidebar: who you follow
   const sidebar=document.getElementById('following-list-sidebar');
   if(sidebar){
@@ -6741,45 +6922,65 @@ function renderFollowingFeed(){
   const feed=document.getElementById('following-feed');
   if(!feed)return;
 
-  const followedIds=new Set([...following]);
-  const posts=FOLLOWING_POSTS.filter(p=>followedIds.has(p.userId));
-  // Also include posts from socialPosts by followed people
-  const socialFollowPosts=socialPosts.filter(p=>followedIds.has(p.userId));
-  const allPosts=[...posts,...socialFollowPosts].sort((a,b)=>new Date(b.date)-new Date(a.date));
-
-  if(followedIds.size===0){
-    feed.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted)">
-      <div style="font-size:48px;margin-bottom:16px">➕</div>
-      <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Follow people to see their posts</div>
-      <div style="font-size:14px;margin-bottom:20px">Follow readers, BookTok creators, authors, and librarians to build your personalized feed.</div>
-      <button class="btn btn-primary" onclick="switchSocialTab('people')">Discover People</button>
-    </div>`;
-    return;
-  }
-
-  if(allPosts.length===0){
-    feed.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted)">
-      <div style="font-size:48px;margin-bottom:16px">📭</div>
-      <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Nothing yet</div>
-      <div style="font-size:14px">The people you follow haven't posted recently.</div>
-    </div>`;
-    return;
+  // Load from backend when logged in
+  let allPosts;
+  if(currentUser&&authToken){
+    if(!_serverFeedLoaded){
+      feed.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⏳</div><div style="font-size:14px">Loading your following feed…</div></div>`;
+      await loadFeedFromServer();
+    }
+    // Server feed is already filtered to: self + people you follow on the backend
+    allPosts=_serverFeed.filter(p=>!p.isMe).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    if(allPosts.length===0){
+      feed.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:16px">📭</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Your following feed is empty</div>
+        <div style="font-size:14px;margin-bottom:20px">Search for readers in People tab and follow them — their reviews will show up here.</div>
+        <button class="btn btn-primary" onclick="switchSocialTab('people')">Find People to Follow</button>
+      </div>`;
+      return;
+    }
+  }else{
+    const followedIds=new Set([...following]);
+    if(followedIds.size===0){
+      feed.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:16px">➕</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Follow people to see their posts</div>
+        <div style="font-size:14px;margin-bottom:20px">Follow readers, BookTok creators, authors, and librarians to build your personalized feed.</div>
+        <button class="btn btn-primary" onclick="switchSocialTab('people')">Discover People</button>
+      </div>`;
+      return;
+    }
+    const posts=FOLLOWING_POSTS.filter(p=>followedIds.has(p.userId));
+    const socialFollowPosts=socialPosts.filter(p=>followedIds.has(p.userId));
+    allPosts=[...posts,...socialFollowPosts].sort((a,b)=>new Date(b.date)-new Date(a.date));
+    if(allPosts.length===0){
+      feed.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:16px">📭</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Nothing yet</div>
+        <div style="font-size:14px">The people you follow haven't posted recently.</div>
+      </div>`;
+      return;
+    }
   }
 
   feed.innerHTML=allPosts.map(p=>{
     const isFollowingPost=FOLLOWABLE_POOL.find(u=>u.id===p.userId);
     const badge=isFollowingPost?.badge||'';
     const followers=isFollowingPost?.followers;
+    const avatarHtml=p.avatarUrl
+      ?`<img src="${p.avatarUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
+      :`<div style="width:40px;height:40px;border-radius:50%;background:${p.avatarBg}25;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${p.avatar||'📖'}</div>`;
     return `<div class="post-card" id="fpost-${p.id}">
       <div class="post-header">
         <div style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer" onclick="showFriendProfile('${p.userId}')">
-          <div style="width:40px;height:40px;border-radius:50%;background:${p.avatarBg}25;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${p.avatar}</div>
+          ${avatarHtml}
           <div>
             <div style="font-weight:700;font-size:14px">${p.userName} ${badge?`<span style="font-size:10px;background:var(--surface2);padding:2px 7px;border-radius:10px;color:var(--muted);margin-left:4px">${badge}</span>`:''}</div>
-            <div style="font-size:11px;color:var(--muted)">${p.date}${followers?` · ${(followers/1000).toFixed(1)}k followers`:''}</div>
+            <div style="font-size:11px;color:var(--muted)">${timeAgo?timeAgo(p.date):p.date}${followers?` · ${(followers/1000).toFixed(1)}k followers`:''}</div>
           </div>
         </div>
-        <button onclick="unfollowUser('${p.userId}')" style="background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;flex-shrink:0">Following ✓</button>
+        ${!p.isMe?`<button onclick="unfollowUser('${p.userId}')" style="background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;flex-shrink:0">Following ✓</button>`:''}
       </div>
       ${p.bookTitle?`<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:10px">
         <div style="width:36px;height:52px;border-radius:4px;background:linear-gradient(135deg,${p.avatarBg}60,${p.avatarBg}30);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text);font-weight:700;flex-shrink:0;overflow:hidden">
@@ -6793,7 +6994,7 @@ function renderFollowingFeed(){
       </div>`:''}
       ${p.review?`<div class="post-text">${p.review}</div>`:''}
       <div class="post-actions">
-        <button class="action-btn" onclick="toggleFollowingLike(${p.id})" id="flike-${p.id}">
+        <button class="action-btn${p.liked?' liked':''}" onclick="toggleLike(${p.id})" id="flike-${p.id}">
           ${p.liked?'❤️':'🤍'} <span>${p.likes}</span>
         </button>
         <button class="action-btn">💬 Comment</button>
@@ -6803,14 +7004,7 @@ function renderFollowingFeed(){
   }).join('');
 }
 
-function toggleFollowingLike(postId){
-  const p=FOLLOWING_POSTS.find(x=>x.id===postId)||socialPosts.find(x=>x.id===postId);
-  if(!p)return;
-  p.liked=!p.liked;
-  p.likes=p.liked?p.likes+1:p.likes-1;
-  const btn=document.getElementById('flike-'+postId);
-  if(btn)btn.innerHTML=`${p.liked?'❤️':'🤍'} <span>${p.likes}</span>`;
-}
+function toggleFollowingLike(postId){toggleLike(postId);}
 
 function renderFriendsTab(){
   const el=document.getElementById('friends-tab-content');
@@ -6890,7 +7084,7 @@ function renderPeopleTab(searchQ){
         ${p.bio?`<div style="font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${p.bio}</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:stretch">
-        ${isInFollowPool&&!isRealUser?`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'}" style="font-size:11px;padding:5px 10px;min-width:80px" onclick="${isFollowing?`unfollowUser('${p.id}')`:`followUser('${p.id}')`}">${isFollowing?'✓ Following':'+ Follow'}</button>`:''}
+        <button class="btn ${isFollowing?'btn-secondary':'btn-primary'}" style="font-size:11px;padding:5px 10px;min-width:80px" onclick="${isFollowing?`unfollowUser('${p.id}')`:`followUser('${p.id}')`}">${isFollowing?'✓ Following':'+ Follow'}</button>
         ${friendBtn}
       </div>
     </div>`;
