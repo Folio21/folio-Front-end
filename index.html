@@ -965,20 +965,17 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
     <div class="nav-section">Library</div>
     <button class="nav-item active" onclick="showView('calendar')">Calendar</button>
     <button class="nav-item" onclick="showView('books')">My Books</button>
-    <button class="nav-item" onclick="showView('alltime')">All Time</button>
     <div class="nav-section">Discover</div>
     <button class="nav-item" onclick="showView('discover')">Discover</button>
     <button class="nav-item" onclick="showView('social')">Social<span class="nav-badge" id="social-badge">3</span></button>
     <button class="nav-item" onclick="showView('announcements')">Announcements<span class="nav-badge" id="ann-badge" style="display:none">0</span></button>
     <button class="nav-item" onclick="showView('challenges')">Challenges</button>
     <button class="nav-item" onclick="showView('buddy-reads')">Buddy Reads</button>
-    <button class="nav-item" onclick="showView('reading-lists')">Reading Lists</button>
     <button class="nav-item" onclick="showView('recap')">Weekly Recap</button>
     <div class="nav-section">Insights</div>
     <button class="nav-item" onclick="showView('stats')">Stats</button>
     <button class="nav-item" onclick="showView('reading-map')">Reading Map</button>
     <button class="nav-item" onclick="showView('awards')">Awards</button>
-    <button class="nav-item" onclick="showView('series')">Series</button>
     <button class="nav-item" onclick="showView('graveyard')">Graveyard</button>
     <button class="nav-item" onclick="showView('dna')">Reader DNA</button>
     <button class="nav-item" onclick="openWrapped()" style="margin-top:2px">Folio Wrapped</button>
@@ -1036,12 +1033,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
     <div class="mob-drawer-item" id="mob-d-challenges" onclick="showView('challenges');closeMobileDrawer()"><span class="mob-drawer-icon">&#127919;</span>Challenges</div>
     <div class="mob-drawer-item" id="mob-d-dna" onclick="showView('dna');closeMobileDrawer()"><span class="mob-drawer-icon">&#129516;</span>Reader DNA</div>
     <div class="mob-drawer-item" id="mob-d-reading-map" onclick="showView('reading-map');closeMobileDrawer()"><span class="mob-drawer-icon">&#127758;</span>Map</div>
-    <div class="mob-drawer-item" id="mob-d-alltime" onclick="showView('alltime');closeMobileDrawer()"><span class="mob-drawer-icon">&#128218;</span>All Time</div>
     <div class="mob-drawer-item" id="mob-d-buddy-reads" onclick="showView('buddy-reads');closeMobileDrawer()"><span class="mob-drawer-icon">&#128101;</span>Buddy Reads</div>
-    <div class="mob-drawer-item" id="mob-d-reading-lists" onclick="showView('reading-lists');closeMobileDrawer()"><span class="mob-drawer-icon">&#128203;</span>Lists</div>
     <div class="mob-drawer-item" id="mob-d-awards" onclick="showView('awards');closeMobileDrawer()"><span class="mob-drawer-icon">&#127942;</span>Awards</div>
     <div class="mob-drawer-item" id="mob-d-recap" onclick="showView('recap');closeMobileDrawer()"><span class="mob-drawer-icon">&#128197;</span>Recap</div>
-    <div class="mob-drawer-item" id="mob-d-series" onclick="showView('series');closeMobileDrawer()"><span class="mob-drawer-icon">&#128083;</span>Series</div>
     <div class="mob-drawer-item" onclick="openWrapped();closeMobileDrawer()"><span class="mob-drawer-icon">&#127881;</span>Wrapped</div>
     <div class="mob-drawer-item" id="mob-d-graveyard" onclick="showView('graveyard');closeMobileDrawer()"><span class="mob-drawer-icon">&#128122;</span>Graveyard</div>
     <div class="mob-drawer-item" id="mob-d-profile" onclick="showView('profile');closeMobileDrawer()"><span class="mob-drawer-icon">&#9711;</span>Profile</div>
@@ -1205,7 +1199,6 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
     <div class="social-tabs">
       <button class="social-tab active" id="stab-feed" onclick="switchSocialTab('feed')">📰 Feed</button>
       <button class="social-tab" id="stab-following" onclick="switchSocialTab('following')">➕ Following</button>
-      <button class="social-tab" id="stab-trending" onclick="switchSocialTab('trending')">🔥 Trending</button>
       <button class="social-tab" id="stab-groups" onclick="switchSocialTab('groups')">👥 Groups <span class="social-tab-badge" id="groups-badge" style="display:none"></span></button>
       <button class="social-tab" id="stab-messages" onclick="switchSocialTab('messages')">💌 Messages <span class="social-tab-badge" id="dm-badge" style="display:none">2</span></button>
       <button class="social-tab" id="stab-friends" onclick="switchSocialTab('friends')">👥 Friends <span class="social-tab-badge" id="friend-req-badge" style="display:none"></span></button>
@@ -1221,14 +1214,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
         <div class="feed" id="social-feed"></div>
         <div class="social-sidebar">
           <div class="sidebar-widget"><div class="widget-title">Friends</div><div id="friends-list"></div></div>
-          <div class="sidebar-widget"><div class="widget-title">Trending</div><div id="trending-list"></div></div>
         </div>
       </div>
-    </div>
-
-    <!-- TRENDING PANEL -->
-    <div id="social-trending-panel" style="display:none">
-      <div id="trending-tab-content"></div>
     </div>
 
     <!-- FOLLOWING PANEL -->
@@ -2253,7 +2240,8 @@ function showView(name){
   if(name==='books')renderBooksGrid();
   if(name==='stats')renderStats();
   if(name==='calendar'){renderCal();if(window.innerWidth<=768){var slot=document.getElementById('cal-recap-slot');if(slot){slot.style.display='block';slot.innerHTML=buildMobileRecapWidget();}}}
-  if(name==='alltime')renderAllTime();
+  if(name==='alltime'){showView('dna');return;}
+  if(name==='dna')renderReaderDNA();
   if(name==='discover')renderDiscover();
   if(name==='challenges')renderChallengesView();
   if(name==='social'){renderSocialView();document.getElementById('social-badge').style.display='none';}
@@ -3807,30 +3795,27 @@ function renderSocialView(){
       renderPeopleTab();
     }
   }
-  else if(socialTab==='trending')renderTrendingTab();
   else if(socialTab==='saved')renderSavedTab();
   else renderMessages();
 }
 
 function switchSocialTab(tab){
   socialTab=tab;
-  ['feed','following','trending','groups','messages','friends','people','saved'].forEach(t=>{
+  ['feed','following','groups','messages','friends','people','saved'].forEach(t=>{
     document.getElementById('stab-'+t)?.classList.toggle('active',t===tab);
   });
   document.getElementById('social-feed-panel').style.display=tab==='feed'?'block':'none';
   document.getElementById('social-following-panel').style.display=tab==='following'?'block':'none';
-  document.getElementById('social-trending-panel').style.display=tab==='trending'?'block':'none';
   document.getElementById('social-groups-panel').style.display=tab==='groups'?'block':'none';
   document.getElementById('social-messages-panel').style.display=tab==='messages'?'block':'none';
   document.getElementById('social-friends-panel').style.display=tab==='friends'?'block':'none';
   document.getElementById('social-people-panel').style.display=tab==='people'?'block':'none';
   document.getElementById('social-saved-panel').style.display=tab==='saved'?'block':'none';
-  const titles={feed:'Social',following:'Following',trending:'🔥 Trending',groups:'Groups',messages:'Messages',friends:'Friends',people:'🔍 People',saved:'Saved Posts'};
+  const titles={feed:'Social',following:'Following',groups:'Groups',messages:'Messages',friends:'Friends',people:'🔍 People',saved:'Saved Posts'};
   document.getElementById('social-title').textContent=titles[tab]||'Social';
   document.getElementById('social-header-actions').innerHTML='';
   if(tab==='feed'){document.getElementById('social-header-actions').innerHTML=`<button class="btn btn-primary" onclick="openCreatePostModal()">+ Post</button>`;renderFeed();}
   else if(tab==='following')renderFollowingFeed();
-  else if(tab==='trending')renderTrendingTab();
   else if(tab==='groups'){renderGroupsTab();document.getElementById('social-header-actions').innerHTML=`<button class="btn btn-primary" onclick="openCreateGroupModal()">+ Create Group</button>`;}
   else if(tab==='friends'){
     if(authToken&&typeof loadFriendData==='function'){
@@ -11023,7 +11008,42 @@ function renderReaderDNA(){
     ${renderTasteEvolution(readBooks)}
     ${renderHiddenPatterns(dna,readBooks)}
     ${thisYearBooks.length>=2?renderReadingLetter(dna,readBooks,thisYearBooks,yr):''}
+    ${renderAllTimeSection(readBooks)}
   `;
+}
+
+function renderAllTimeSection(readBooks){
+  const books_all=readBooks;
+  if(!books_all.length)return'';
+  const years=[...new Set(books_all.map(b=>pd(b.date).getFullYear()))].filter(y=>!isNaN(y)).sort((a,b)=>b-a);
+  if(!years.length)return'';
+  const maxY=Math.max(...years.map(y=>books_all.filter(b=>pd(b.date).getFullYear()===y).length),1);
+  return`<div style="margin-top:36px">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px">📚 All Time — Every Book You've Read</div>
+    ${years.map(yr=>{
+      const yb=books_all.filter(b=>pd(b.date).getFullYear()===yr).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+      const pct=Math.round(yb.length/maxY*100);
+      return`<div class="year-group">
+        <div class="year-group-header" onclick="toggleYearGroup(${yr})">
+          <div class="year-group-year">${yr}</div>
+          <div class="year-group-count">${yb.length} book${yb.length!==1?'s':''}</div>
+          <div class="year-group-bar"><div class="year-group-fill" style="width:${pct}%"></div></div>
+          <span id="ytog-${yr}" style="font-size:11px;color:var(--muted)">▼</span>
+        </div>
+        <div class="year-books-list open" id="ylist-${yr}">
+          ${yb.map(b=>`<div class="timeline-book" onclick="openBookDetail(${b.id})">
+            ${b.coverUrl?`<div class="timeline-book-cover" style="padding:0;overflow:hidden;background:var(--surface2)"><img src="${b.coverUrl}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentNode.className='timeline-book-cover ${COLORS[b.colorIdx%8]}';this.parentNode.textContent='${b.title[0]}'"/></div>`:`<div class="timeline-book-cover ${COLORS[b.colorIdx%8]}">${b.title[0]}</div>`}
+            <div class="timeline-book-info">
+              <div class="timeline-book-title">${b.title}</div>
+              <div class="timeline-book-meta">${b.author}${b.genre?` · ${b.genre}`:''}</div>
+              <div style="font-size:10px">${b.rating?renderStars(b.rating):''}</div>
+            </div>
+            <div class="timeline-book-date">${fd(b.date)}</div>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 function computeDNA(readBooks){
