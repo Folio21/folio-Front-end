@@ -4916,6 +4916,12 @@ function renderSuggestedGroups(){
 }
 
 // ── Backend group viewer ──
+let _currentBgSlug=null;
+let _currentBgMembers=[];
+let _bgChatPollTimer=null;
+
+function _stopBgChatPoll(){clearInterval(_bgChatPollTimer);_bgChatPollTimer=null;}
+
 function _groupTimeAgo(iso){
   if(!iso)return'';
   const diff=Date.now()-new Date(iso).getTime();
@@ -4952,6 +4958,8 @@ function backendGroupPostHtml(p,slug){
 }
 
 async function openBackendGroup(slug){
+  _stopBgChatPoll();
+  _currentBgSlug=slug;
   const el=document.getElementById('group-detail');
   const browse=document.getElementById('groups-browse');
   if(!el||!browse)return;
@@ -4966,6 +4974,7 @@ async function openBackendGroup(slug){
     const g=data?.group;
     if(!g){el.innerHTML=`<div style="padding:24px;color:var(--muted)">Group not found.</div>`;return;}
     const members=data?.members||[];
+    _currentBgMembers=members;
     const isMember=!!(data?.membership)||members.some(m=>m.userId===currentUser?.id);
     const isAdmin=members.some(m=>m.role==='admin'&&m.userId===currentUser?.id);
     const posts=postsData?.posts||[];
@@ -5014,32 +5023,36 @@ async function openBackendGroup(slug){
       </div>
 
       <div class="group-tabs" style="margin-bottom:16px">
-        <button class="group-tab active">📝 Posts</button>
+        <button class="group-tab active" id="bgtab-posts-${g.slug}" onclick="switchBackendGroupTab('${g.slug}','posts')">📝 Posts</button>
+        ${isMember?`<button class="group-tab" id="bgtab-chat-${g.slug}" onclick="switchBackendGroupTab('${g.slug}','chat')">💬 Group Chat</button>`:''}
       </div>
 
-      <div class="group-detail-layout">
-        <div>
-          ${isMember?`
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
-              ${myProfile.picUrl?`<img src="${myProfile.picUrl}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div class="avatar" style="background:${(myProfile.color||'#7c72f5')}20;font-size:18px;flex-shrink:0">${myProfile.avatar||'📖'}</div>`}
-              <div onclick="openBackendGroupPostModal('${g.slug}')" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:10px 16px;cursor:pointer;color:var(--muted);font-size:13px">Share something with the group…</div>
-              <button class="btn btn-primary btn-sm" onclick="openBackendGroupPostModal('${g.slug}')">+ Post</button>
-            </div>`
-          :authToken?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:14px;color:var(--muted);font-size:13px">${privacy==='private'?'🔒 Join this group to see posts and participate':'Join this group to share your reviews here'}</div>`
-          :`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:14px;color:var(--muted);font-size:13px"><a onclick="showAuthModal()" style="color:var(--accent);cursor:pointer;font-weight:700">Sign in</a> to join and post in this group</div>`}
+      <div id="bgpanel-posts-${g.slug}">
+        <div class="group-detail-layout">
+          <div>
+            ${isMember?`
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+                ${myProfile.picUrl?`<img src="${myProfile.picUrl}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div class="avatar" style="background:${(myProfile.color||'#7c72f5')}20;font-size:18px;flex-shrink:0">${myProfile.avatar||'📖'}</div>`}
+                <div onclick="openBackendGroupPostModal('${g.slug}')" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:10px 16px;cursor:pointer;color:var(--muted);font-size:13px">Share something with the group…</div>
+                <button class="btn btn-primary btn-sm" onclick="openBackendGroupPostModal('${g.slug}')">+ Post</button>
+              </div>`
+            :authToken?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:14px;color:var(--muted);font-size:13px">${privacy==='private'?'🔒 Join this group to see posts and participate':'Join this group to share your reviews here'}</div>`
+            :`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:14px;color:var(--muted);font-size:13px"><a onclick="showAuthModal()" style="color:var(--accent);cursor:pointer;font-weight:700">Sign in</a> to join and post in this group</div>`}
 
-          <div class="group-feed">
-            ${postCards||`<div style="color:var(--muted);font-size:13px;padding:20px;text-align:center">No posts yet.${isMember?' Be the first to share!':''}</div>`}
+            <div class="group-feed">
+              ${postCards||`<div style="color:var(--muted);font-size:13px;padding:20px;text-align:center">No posts yet.${isMember?' Be the first to share!':''}</div>`}
+            </div>
+          </div>
+
+          <div class="group-sidebar-panel">
+            <div class="sidebar-widget">
+              <div class="widget-title">Members (${memberCount})</div>
+              ${memberRows||'<div style="font-size:12px;color:var(--muted)">No members yet</div>'}
+            </div>
           </div>
         </div>
-
-        <div class="group-sidebar-panel">
-          <div class="sidebar-widget">
-            <div class="widget-title">Members (${memberCount})</div>
-            ${memberRows||'<div style="font-size:12px;color:var(--muted)">No members yet</div>'}
-          </div>
-        </div>
-      </div>`;
+      </div>
+      ${isMember?`<div id="bgpanel-chat-${g.slug}" style="display:none;flex-direction:column;height:520px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden"></div>`:''}`;
   }catch(e){
     el.innerHTML=`<div style="padding:24px"><button onclick="backToGroups()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;margin-bottom:16px">← Back to Groups</button><div style="color:var(--muted)">Failed to load group. ${e.message||'Check your connection.'}</div></div>`;
   }
@@ -5116,6 +5129,106 @@ async function leaveBackendGroup(slug){
 
 // legacy shim — kept so old inline calls don't break
 async function postToBackendGroup(slug){openBackendGroupPostModal(slug);}
+
+// ── Backend group chat ──
+function switchBackendGroupTab(slug,tab){
+  _stopBgChatPoll();
+  const postsPanel=document.getElementById(`bgpanel-posts-${slug}`);
+  const chatPanel=document.getElementById(`bgpanel-chat-${slug}`);
+  const postsTab=document.getElementById(`bgtab-posts-${slug}`);
+  const chatTab=document.getElementById(`bgtab-chat-${slug}`);
+  if(!postsPanel||!chatPanel)return;
+  const toChat=tab==='chat';
+  postsPanel.style.display=toChat?'none':'block';
+  chatPanel.style.display=toChat?'flex':'none';
+  postsTab?.classList.toggle('active',!toChat);
+  chatTab?.classList.toggle('active',toChat);
+  if(toChat){
+    renderBackendGroupChat(slug);
+    // Poll every 6s while chat is open
+    _bgChatPollTimer=setInterval(()=>refreshBackendGroupChat(slug),6000);
+  }
+}
+
+async function renderBackendGroupChat(slug){
+  const panel=document.getElementById(`bgpanel-chat-${slug}`);
+  if(!panel)return;
+  panel.innerHTML=`<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px">Loading…</div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="bgchat-input-${slug}" placeholder="Message the group…" disabled/>
+      <button class="send-btn" disabled>➤</button>
+    </div>`;
+  try{
+    const d=await apiCall('GET',`/groups/${slug}/posts`);
+    _renderBgChatMessages(slug,d?.posts||[]);
+  }catch(e){
+    const msgs=panel.querySelector('.chat-messages');
+    if(msgs)msgs.innerHTML=`<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Could not load chat.</div>`;
+  }
+}
+
+async function refreshBackendGroupChat(slug){
+  if(document.getElementById(`bgpanel-chat-${slug}`)?.style.display==='none')return;
+  try{
+    const d=await apiCall('GET',`/groups/${slug}/posts`);
+    _renderBgChatMessages(slug,d?.posts||[]);
+  }catch(_){}
+}
+
+function _renderBgChatMessages(slug,posts){
+  const panel=document.getElementById(`bgpanel-chat-${slug}`);
+  if(!panel)return;
+  // oldest first for chat
+  const sorted=[...posts].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const colors=['#6366f1','#ec4899','#f97316','#10b981','#3b82f6','#a855f7','#eab308','#ef4444'];
+  const msgs=sorted.map((p,i)=>{
+    const u=p.user||{};
+    const mine=currentUser&&u.id===currentUser.id;
+    const safe=(p.body||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const time=new Date(p.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const memberIdx=_currentBgMembers.findIndex(m=>m.userId===u.id);
+    const color=colors[(memberIdx<0?i:memberIdx)%colors.length];
+    const avatarEl=u.avatarUrl
+      ?`<img src="${u.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+      :`<div class="msg-avatar" style="background:${color}">${(u.displayName||u.username||'?')[0].toUpperCase()}</div>`;
+    return`<div class="msg-row ${mine?'mine':'theirs'}">
+      ${!mine?avatarEl:''}
+      <div class="msg-content">
+        ${!mine?`<div class="msg-sender">${u.displayName||u.username||'Member'}</div>`:''}
+        <div class="msg-bubble ${mine?'mine':'theirs'}">${safe}</div>
+        <div class="msg-time">${time}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const wasAtBottom=panel.querySelector('.chat-messages')?.scrollTop+panel.querySelector('.chat-messages')?.clientHeight>=
+    (panel.querySelector('.chat-messages')?.scrollHeight||0)-20;
+
+  panel.innerHTML=`
+    <div class="chat-messages" id="bgchat-msgs-${slug}">${msgs||'<div style="padding:32px;text-align:center;color:var(--muted);font-size:13px">No messages yet. Say hello! 👋</div>'}</div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="bgchat-input-${slug}" placeholder="Message the group…" onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendBackendGroupChat('${slug}')"/>
+      <button class="send-btn" onclick="sendBackendGroupChat('${slug}')">➤</button>
+    </div>`;
+
+  const msgsEl=document.getElementById(`bgchat-msgs-${slug}`);
+  if(msgsEl&&(wasAtBottom||sorted.length===0))msgsEl.scrollTop=msgsEl.scrollHeight;
+}
+
+async function sendBackendGroupChat(slug){
+  const inp=document.getElementById(`bgchat-input-${slug}`);
+  if(!inp||!inp.value.trim())return;
+  const text=inp.value.trim();
+  inp.value='';
+  inp.disabled=true;
+  try{
+    await apiCall('POST',`/groups/${slug}/posts`,{body:text});
+    await refreshBackendGroupChat(slug);
+  }catch(e){
+    showToast(e.message||'Could not send message');
+    inp.value=text;
+  }finally{inp.disabled=false;inp.focus();}
+}
 
 // ═══════════════════════════════════════════════
 //  GROUPS — ACTIONS
@@ -5652,6 +5765,8 @@ function postToGroup(groupId){
 }
 
 function backToGroups(){
+  _stopBgChatPoll();
+  _currentBgSlug=null;
   currentGroupId=null;
   document.getElementById('groups-browse').style.display='block';
   document.getElementById('group-detail').classList.remove('active');
