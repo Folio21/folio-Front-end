@@ -6539,14 +6539,11 @@ function submitBook(e){
       if(authorNationality)b.authorNationality=authorNationality;
       b.moods=moods;b.pace=pace;b.priority=priority;b.owned=owned;b.source=source||b.source||'';
       b.rating=formStatus==='read'?(selectedStars||b.rating||3):0;
-      // Set startDate when switching to reading (if not already set)
-      if(formStatus==='reading'&&!b.startDate){
-        b.startDate=document.getElementById('f-startdate').value||ds(today);
-      }
-      // Update startDate for read/paused books from the field
-      if(formStatus==='read'||formStatus==='paused'){
+      // Always save startDate from the field for any non-want status
+      if(formStatus==='reading'||formStatus==='read'||formStatus==='paused'){
         const sdv=document.getElementById('f-startdate').value;
         if(sdv)b.startDate=sdv;
+        else if(!b.startDate)b.startDate=ds(today);
       }
       // Set endDate when marking as read
       if(formStatus==='read'){b.endDate=date||ds(today);}
